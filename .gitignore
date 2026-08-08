@@ -1,0 +1,19 @@
+# Real business data - never commit, even to a private repo
+*.xlsx
+*.xls
+*.csv
+index.html
+
+# Python
+app/backend/venv/
+app/backend/**/__pycache__/
+*.pyc
+
+# Node / frontend
+app/frontend/node_modules/
+app/frontend/dist/
+app/frontend/.vite/
+
+# OS / editor
+.DS_Store
+*.log
