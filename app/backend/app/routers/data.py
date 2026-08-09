@@ -1,8 +1,9 @@
 import io
+import os
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from .. import appsscript, sheets
 from ..formulas import DOI_DEFAULT_THRESHOLD, ColumnNotFoundError
@@ -165,6 +166,44 @@ async def appsscript_sync(
     set_raw_cache(raw)
     try:
         store.load(raw, f"Apps Script ({tab_name or 'sheet'})", doi_threshold=doi_threshold)
+    except ColumnNotFoundError as e:
+        raise HTTPException(422, str(e))
+    return _status_payload()
+
+
+@router.post("/push")
+async def push(request: Request):
+    """
+    The reverse of every other sync path: Apps Script's outbound UrlFetchApp
+    calls this directly, pushing rows to us, rather than us pulling from
+    Google. Exists because Workspace admin policy can block every inbound
+    route (service account sharing, OAuth, and even Apps Script's own web
+    app when called anonymously) without touching outbound calls a script
+    makes on the signed-in user's own authority - see PUSH_SYNC.md.
+    """
+    expected = os.environ.get("APPSSCRIPT_PUSH_TOKEN")
+    if not expected:
+        raise HTTPException(400, "Push endpoint not configured (APPSSCRIPT_PUSH_TOKEN not set on the backend).")
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if token != expected:
+        raise HTTPException(401, "Invalid push token.")
+
+    body = await request.json()
+    if isinstance(body, dict):
+        rows = body.get("rows")
+        doi_threshold = float(body.get("doi_threshold") or DOI_DEFAULT_THRESHOLD)
+        source = body.get("source", "Apps Script push")
+    else:
+        rows = body
+        doi_threshold = DOI_DEFAULT_THRESHOLD
+        source = "Apps Script push"
+    if not rows:
+        raise HTTPException(400, "No rows in push payload.")
+
+    raw = pd.DataFrame(rows)
+    set_raw_cache(raw)
+    try:
+        store.load(raw, source, doi_threshold=doi_threshold)
     except ColumnNotFoundError as e:
         raise HTTPException(422, str(e))
     return _status_payload()

@@ -1,8 +1,9 @@
 import io
+import os
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 
 from .. import appsscript, fillrate as F
 from .. import sheets
@@ -101,6 +102,27 @@ async def appsscript_sync(webhook_url: str = Form(...), token: str = Form(...), 
     if raw.empty:
         raise HTTPException(400, "That sheet/tab came back empty.")
     return _load_raw(raw, f"Apps Script ({tab_name or 'sheet'})")
+
+
+@router.post("/push")
+async def push(request: Request):
+    """Apps Script pushes rows to us directly - see data.py's /push for why."""
+    expected = os.environ.get("APPSSCRIPT_PUSH_TOKEN")
+    if not expected:
+        raise HTTPException(400, "Push endpoint not configured (APPSSCRIPT_PUSH_TOKEN not set on the backend).")
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if token != expected:
+        raise HTTPException(401, "Invalid push token.")
+
+    body = await request.json()
+    rows = body.get("rows") if isinstance(body, dict) else body
+    source = body.get("source", "Apps Script push") if isinstance(body, dict) else "Apps Script push"
+    if not rows:
+        raise HTTPException(400, "No rows in push payload.")
+    raw = pd.DataFrame(rows)
+    if raw.empty:
+        raise HTTPException(400, "Push payload came back empty.")
+    return _load_raw(raw, source)
 
 
 @router.get("/status")
