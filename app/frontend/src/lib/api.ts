@@ -79,6 +79,9 @@ export type PanRow = {
   inventory: number;
   open_po: number;
   cumulative_pct: number;
+  fill_L1?: number;
+  fill_L2?: number;
+  fill_L15?: number;
 };
 
 export type PanResponse = {
@@ -92,9 +95,17 @@ export type PanResponse = {
     unavail_pct_of_pan: number;
     unavail_pct_within_cut: number;
   };
+  fill_rate_available: boolean;
 };
 
-export type WhItemCell = { cpd: number; inventory: number; doi: number; status: "OK" | "LOW" | "OUT" };
+export type WhItemCell = {
+  cpd: number;
+  inventory: number;
+  doi: number;
+  status: "OK" | "LOW" | "OUT";
+  fill_L1?: number;
+  fill_L2?: number;
+};
 export type WhItemRow = {
   item: string;
   brand: string;
@@ -103,7 +114,38 @@ export type WhItemRow = {
   avail_wtd: number;
   cells: Record<string, WhItemCell>;
 };
-export type WhItemResponse = { items: WhItemRow[]; warehouses: string[] };
+export type WhItemResponse = { items: WhItemRow[]; warehouses: string[]; fill_rate_available: boolean };
+
+export type WhItemDrillRow = {
+  wh: string;
+  region: string;
+  cpd: number;
+  inventory: number;
+  doi: number;
+  open_po: number;
+  status: "OK" | "LOW" | "OUT";
+  fill_L1: number | null;
+  fill_L2: number | null;
+};
+export type WhItemDrill = {
+  item: string;
+  wh: string;
+  brand: string;
+  cpd_here: number;
+  pct_of_national: number;
+  inventory: number;
+  doi: number;
+  open_po: number;
+  pipeline: number;
+  national_cpd: number;
+  national_wh_count: number;
+  out_wh_count: number;
+  out_cpd: number;
+  fill_L1: number | null;
+  fill_L2: number | null;
+  fill_rate_available: boolean;
+  rows: WhItemDrillRow[];
+};
 
 export type DataStatus = {
   loaded: boolean;
@@ -206,6 +248,8 @@ export const api = {
   priorityQueue: (f: Filters, topN = 15) => get<PriorityRow[]>(`/api/views/priority-queue?${qs(f, { top_n: topN })}`),
   whItem: (f: Filters, drillBrand: string, topN = 30) =>
     get<WhItemResponse>(`/api/views/wh-item?${qs(f, { drill_brand: drillBrand, top_n: topN })}`),
+  whItemDrill: (wh: string, item: string) =>
+    get<WhItemDrill>(`/api/views/wh-item-drill?${new URLSearchParams({ wh, item }).toString()}`),
   detail: (f: Filters, limit = 5000) => get<DetailRow[]>(`/api/views/detail?${qs(f, { limit })}`),
 };
 

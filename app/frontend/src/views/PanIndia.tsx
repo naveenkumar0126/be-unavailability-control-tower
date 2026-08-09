@@ -3,7 +3,7 @@ import ReactECharts from "echarts-for-react";
 import { api, type Filters, type PanResponse } from "../lib/api";
 import { DataTable, type Column } from "../components/DataTable";
 import { SeverityPill } from "../components/Pill";
-import { fmtNum, fmtPct, severityColor } from "../lib/format";
+import { availColor, fmtNum, fmtPct, severityColor } from "../lib/format";
 import { seriesHex, availHex, palette } from "../lib/chartColors";
 import { useTheme } from "../lib/theme";
 
@@ -36,6 +36,25 @@ export function PanIndia({ filters, dataVersion }: { filters: Filters; dataVersi
     { key: "unavail_pan", label: "Unavail % of PAN", decimals: 2 },
     { key: "unavail_within", label: "Unavail within", render: (v: number) => <SeverityPill value={v} color={severityColor(v)} /> },
     { key: "avail_wtd", label: "Avail · weighted", decimals: 1 },
+    ...(data?.fill_rate_available
+      ? ([
+          {
+            key: "fill_L1",
+            label: "Fill % · L1",
+            render: (v: number | undefined) => (v == null ? "–" : <SeverityPill value={v} color={availColor(v)} />),
+          },
+          {
+            key: "fill_L2",
+            label: "Fill % · L2",
+            render: (v: number | undefined) => (v == null ? "–" : <SeverityPill value={v} color={availColor(v)} />),
+          },
+          {
+            key: "fill_L15",
+            label: "Fill % · L15",
+            render: (v: number | undefined) => (v == null ? "–" : <SeverityPill value={v} color={availColor(v)} />),
+          },
+        ] as Column<any>[])
+      : []),
   ];
 
   const paretoN = mode === "brand" ? 20 : 30;

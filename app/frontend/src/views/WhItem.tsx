@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Filters, type WhItemResponse } from "../lib/api";
-import { fmtNum, shortWh } from "../lib/format";
+import { fmtNum, shortWh, availColor } from "../lib/format";
+import { WhItemDrillPanel } from "../components/WhItemDrillPanel";
 
 const STATUS_COLOR: Record<string, string> = {
   OK: "var(--status-good)",
@@ -8,10 +9,14 @@ const STATUS_COLOR: Record<string, string> = {
   OUT: "var(--status-critical)",
 };
 
+type Metric = "status" | "fill_L1" | "fill_L2";
+
 export function WhItem({ filters, brands, dataVersion }: { filters: Filters; brands: string[]; dataVersion: number }) {
   const [brand, setBrand] = useState("__TOP__");
   const [topN, setTopN] = useState(30);
+  const [metric, setMetric] = useState<Metric>("status");
   const [data, setData] = useState<WhItemResponse | null>(null);
+  const [selected, setSelected] = useState<{ wh: string; item: string } | null>(null);
 
   useEffect(() => {
     api.whItem(filters, brand, topN).then(setData).catch(() => setData(null));
@@ -45,14 +50,36 @@ export function WhItem({ filters, brands, dataVersion }: { filters: Filters; bra
             </option>
           ))}
         </select>
-        <div className="flex items-center gap-1.5 ml-auto text-[10.5px]" style={{ color: "var(--text-muted)" }}>
-          {Object.entries(STATUS_COLOR).map(([k, c]) => (
-            <span key={k} className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c }} />
-              {k}
-            </span>
-          ))}
-        </div>
+
+        {data?.fill_rate_available && (
+          <div className="flex items-center gap-1">
+            {([
+              ["status", "Status"],
+              ["fill_L1", "Fill % · L1"],
+              ["fill_L2", "Fill % · L2"],
+            ] as [Metric, string][]).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
+                className="rounded-md px-2.5 py-1 text-[11px] font-semibold"
+                style={{ background: metric === m ? "var(--series-1)" : "var(--surface-2)", color: metric === m ? "#fff" : "var(--text-secondary)" }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {metric === "status" && (
+          <div className="flex items-center gap-1.5 ml-auto text-[10.5px]" style={{ color: "var(--text-muted)" }}>
+            {Object.entries(STATUS_COLOR).map(([k, c]) => (
+              <span key={k} className="flex items-center gap-1">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c }} />
+                {k}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {!data ? (
@@ -90,13 +117,41 @@ export function WhItem({ filters, brands, dataVersion }: { filters: Filters; bra
                   {data.warehouses.map((w) => {
                     const c = it.cells[w];
                     if (!c) return <td key={w} style={{ color: "var(--text-muted)" }}>·</td>;
+
+                    const isSel = selected?.wh === w && selected?.item === it.item;
+                    let bg: string;
+                    let label: string;
+                    if (metric === "status") {
+                      bg = STATUS_COLOR[c.status];
+                      label = c.status;
+                    } else {
+                      const v = metric === "fill_L1" ? c.fill_L1 : c.fill_L2;
+                      if (v == null) {
+                        bg = "var(--baseline)";
+                        label = "–";
+                      } else {
+                        bg = availColor(v);
+                        label = `${v.toFixed(0)}`;
+                      }
+                    }
+
                     return (
                       <td
                         key={w}
-                        style={{ background: STATUS_COLOR[c.status], color: "#fff", fontWeight: 600 }}
-                        title={`${it.item} @ ${w}: DOI ${c.doi?.toFixed(1)}, inv ${fmtNum(c.inventory)}`}
+                        onClick={() => setSelected({ wh: w, item: it.item })}
+                        style={{
+                          background: bg,
+                          color: "#fff",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          outline: isSel ? "3px solid var(--series-7)" : "none",
+                          outlineOffset: "-2px",
+                        }}
+                        title={`${it.item} @ ${w}: DOI ${c.doi?.toFixed(1)}, inv ${fmtNum(c.inventory)}${
+                          c.fill_L1 != null ? `, Fill L1 ${c.fill_L1.toFixed(0)}%` : ""
+                        }`}
                       >
-                        {c.status}
+                        {label}
                       </td>
                     );
                   })}
@@ -106,6 +161,8 @@ export function WhItem({ filters, brands, dataVersion }: { filters: Filters; bra
           </table>
         </div>
       )}
+
+      {selected && <WhItemDrillPanel wh={selected.wh} item={selected.item} onClose={() => setSelected(null)} />}
     </div>
   );
 }

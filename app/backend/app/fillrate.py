@@ -17,6 +17,7 @@ Date windows (per the business rule given for this dataset):
 """
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from typing import Optional
 
@@ -24,6 +25,53 @@ import numpy as np
 import pandas as pd
 
 DATE_BUFFER = 5
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+# Generic category/packaging words that vary between the two sources
+# describing the same SKU (one side says "Frozen Dessert Cone", the other
+# "Ice Cream" for the identical product) - dropped so the join key is left
+# with just the distinctive brand/flavor/size tokens.
+_STOPWORDS = {
+    "ice", "cream", "frozen", "dessert", "cone", "tub", "cup", "stick",
+    "bar", "sandwich", "pack", "packet", "pouch", "box", "bottle", "jar",
+    "carton", "piece", "pieces", "pcs", "pc", "by",
+}
+
+# Unit-abbreviation variants that mean the same size (one side writes "1
+# ltr", the other "1 L") - collapsed to a single canonical token.
+_UNIT_ALIASES = {
+    "ltr": "l", "ltrs": "l", "litre": "l", "litres": "l", "liter": "l", "liters": "l",
+    "gm": "g", "gms": "g", "gram": "g", "grams": "g",
+    "kgs": "kg", "kilogram": "kg", "kilograms": "kg",
+}
+
+
+def normalize_item_name(name: str) -> str:
+    """
+    Fill-rate item names and main-dataset item names describe the same SKUs
+    with different formatting *and* different words (e.g. "BH-Kwality Walls
+    Cornetto Double Chocolate - Ice Cream, 105 ml" vs "Kwality Wall's
+    Cornetto Double Chocolate Frozen Dessert Cone 105 ml"). Strip the "BH-"
+    prefix, apostrophes, and parenthetical pack notes; tokenize; drop generic
+    category/packaging words; sort what's left (order can differ too) - the
+    remaining brand/flavor/size tokens are what's actually distinctive.
+    """
+    s = str(name).strip()
+    s = re.sub(r"^BH-", "", s, flags=re.IGNORECASE)
+
+    # Parens with a digit inside usually carry real info (a "(6 Pieces)"
+    # count) - keep the content, drop just the parens. Parens with no digit
+    # are pure descriptors ("(Heat & Eat)", "(Frozen)") - drop entirely.
+    def _paren(m: re.Match) -> str:
+        inner = m.group(1)
+        return f" {inner} " if any(c.isdigit() for c in inner) else " "
+
+    s = re.sub(r"\(([^)]*)\)", _paren, s)
+    s = s.replace("'", "")
+    tokens = [_UNIT_ALIASES.get(t, t) for t in _TOKEN_RE.findall(s.lower())]
+    tokens = [t for t in tokens if t not in _STOPWORDS]
+    return " ".join(sorted(tokens))
 
 
 def load_fill_df(raw: pd.DataFrame) -> pd.DataFrame:
@@ -90,6 +138,21 @@ def fill_rate_table(df: pd.DataFrame, windows: dict, group_cols: list[str]) -> p
         merged = merged.join(part, how="outer")
     merged = merged.fillna(0.0).reset_index()
     return merged
+
+
+def item_meta_lookup(df: pd.DataFrame) -> dict:
+    """item_id -> {item, brand}, using each item_id's most recent row."""
+    last = df.sort_values("date").drop_duplicates("item_id", keep="last")
+    return {r["item_id"]: {"item": r["item"], "brand": r["brand"]} for _, r in last.iterrows()}
+
+
+def item_id_by_normalized_name(df: pd.DataFrame) -> dict[str, str]:
+    """normalize_item_name(item) -> item_id, for joining against the main dataset's item names."""
+    meta = item_meta_lookup(df)
+    out: dict[str, str] = {}
+    for item_id, m in meta.items():
+        out[normalize_item_name(m["item"])] = item_id
+    return out
 
 
 def fill_color(v: float) -> str:

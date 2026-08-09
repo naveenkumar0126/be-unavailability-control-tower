@@ -2,8 +2,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .. import fillrate as FR
+from .. import fillrate_join as FJ
 from .. import formulas as F
 from ..store import store
+from ..warehouse_map import code_for_name
 from ..util import to_native
 
 router = APIRouter(prefix="/api/views", tags=["views"])
@@ -78,7 +81,17 @@ async def pan_india(
         "unavail_pct_of_pan": (cut_un / total_cpd * 100) if total_cpd else 0.0,
         "unavail_pct_within_cut": (cut_un / cut_cpd * 100) if cut_cpd else 0.0,
     }
-    return to_native({"rows": cut, "summary": summary})
+
+    fill_available = FJ.fill_rate_available()
+    if fill_available:
+        lookup = FJ.brand_fill_lookup() if mode == "brand" else FJ.sku_fill_lookup()
+        for r in cut:
+            key = r["key"] if mode == "brand" else FR.normalize_item_name(r["key"])
+            fr = lookup.get(key)
+            if fr:
+                r.update(fr)
+
+    return to_native({"rows": cut, "summary": summary, "fill_rate_available": fill_available})
 
 
 @router.get("/priority-queue")
@@ -94,7 +107,97 @@ async def wh_item(
     f: Filters = Depends(),
 ):
     _, filtered = _dfs(f)
-    return to_native(F.wh_item_grid(filtered, brand=drill_brand, top_n=top_n))
+    grid = F.wh_item_grid(filtered, brand=drill_brand, top_n=top_n)
+
+    fill_available = FJ.fill_rate_available()
+    if fill_available:
+        fill_lookup = FJ.wh_item_fill_lookup()
+        for item_row in grid["items"]:
+            item_id = FJ.item_id_for_name(item_row["item"])
+            if not item_id:
+                continue
+            for wh_name, cell in item_row["cells"].items():
+                wh_code = code_for_name(wh_name)
+                if not wh_code:
+                    continue
+                fr = fill_lookup.get((wh_code, item_id))
+                if fr:
+                    cell["fill_L1"] = fr["fill_L1"]
+                    cell["fill_L2"] = fr["fill_L2"]
+
+    grid["fill_rate_available"] = fill_available
+    return to_native(grid)
+
+
+@router.get("/wh-item-drill")
+async def wh_item_drill(wh: str = Query(...), item: str = Query(...)):
+    if not store.is_loaded:
+        raise HTTPException(400, "No data loaded yet.")
+    df = store.df
+    across = df[df["item"] == item]
+    if across.empty:
+        raise HTTPException(404, "Item not found in the current dataset.")
+    here = across[across["wh"] == wh]
+    if here.empty:
+        raise HTTPException(404, "That item isn't stocked at that warehouse.")
+    r = here.iloc[0]
+
+    national_cpd = float(across["cpd"].sum())
+    out_rows = across[across["is_unavail"]]
+
+    table = []
+    for _, xr in across.sort_values("cpd", ascending=False).iterrows():
+        table.append({
+            "wh": xr["wh"],
+            "region": xr["region"],
+            "cpd": float(xr["cpd"]),
+            "inventory": float(xr["inventory"]),
+            "doi": float(xr["doi"]),
+            "open_po": float(xr["open_po"]),
+            "status": "OUT" if (xr["is_unavail"] and xr["inventory"] <= 0) else ("LOW" if xr["is_unavail"] else "OK"),
+            "fill_L1": None,
+            "fill_L2": None,
+        })
+
+    result = {
+        "item": item,
+        "wh": wh,
+        "brand": r["brand"],
+        "cpd_here": float(r["cpd"]),
+        "pct_of_national": (float(r["cpd"]) / national_cpd * 100) if national_cpd else 0.0,
+        "inventory": float(r["inventory"]),
+        "doi": float(r["doi"]),
+        "open_po": float(r["open_po"]),
+        "pipeline": float(r["inventory"] + r["open_po"]),
+        "national_cpd": national_cpd,
+        "national_wh_count": int(across["wh"].nunique()),
+        "out_wh_count": int(out_rows["wh"].nunique()),
+        "out_cpd": float(out_rows["cpd"].sum()),
+        "fill_L1": None,
+        "fill_L2": None,
+        "fill_rate_available": FJ.fill_rate_available(),
+        "rows": table,
+    }
+
+    if FJ.fill_rate_available():
+        item_id = FJ.item_id_for_name(item)
+        if item_id:
+            fill_lookup = FJ.wh_item_fill_lookup()
+            here_code = code_for_name(wh)
+            if here_code:
+                fr = fill_lookup.get((here_code, item_id))
+                if fr:
+                    result["fill_L1"] = fr["fill_L1"]
+                    result["fill_L2"] = fr["fill_L2"]
+            for row in table:
+                row_code = code_for_name(row["wh"])
+                if row_code:
+                    fr = fill_lookup.get((row_code, item_id))
+                    if fr:
+                        row["fill_L1"] = fr["fill_L1"]
+                        row["fill_L2"] = fr["fill_L2"]
+
+    return to_native(result)
 
 
 @router.get("/detail")

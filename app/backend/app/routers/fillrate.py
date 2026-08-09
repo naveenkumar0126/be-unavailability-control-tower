@@ -7,12 +7,11 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 
 from .. import appsscript, fillrate as F
 from .. import sheets
+from ..fillrate_store import fill_store
 from ..pushutil import read_push_dataframe
 from ..util import to_native
 
 router = APIRouter(prefix="/api/fillrate", tags=["fillrate"])
-
-_state: dict = {"df": None, "windows": None, "filename": None, "rows": 0}
 
 
 def _load_raw(raw: pd.DataFrame, filename: str) -> dict:
@@ -24,25 +23,23 @@ def _load_raw(raw: pd.DataFrame, filename: str) -> dict:
     except ValueError as e:
         raise HTTPException(422, str(e))
 
-    _state["df"] = df
-    _state["windows"] = windows
-    _state["filename"] = filename
-    _state["rows"] = len(df)
-    return {"loaded": True, "filename": filename, "rows": len(df), "windows": _window_payload()}
-
-
-def _item_lookup(df: pd.DataFrame) -> dict:
-    last = df.sort_values("date").drop_duplicates("item_id", keep="last")
-    return {r["item_id"]: {"item": r["item"], "brand": r["brand"]} for _, r in last.iterrows()}
+    fill_store.load(df, windows, filename)
+    return _status_payload()
 
 
 def _window_payload() -> dict:
-    w = _state["windows"]
+    w = fill_store.windows
     return {
         k: {"start": v[0].strftime("%Y-%m-%d"), "end": v[1].strftime("%Y-%m-%d")}
         for k, v in w.items()
         if k in ("L1", "L2", "L15")
     } | {"max_date": w["max_date"].strftime("%Y-%m-%d"), "cutoff": w["cutoff"].strftime("%Y-%m-%d")}
+
+
+def _status_payload() -> dict:
+    if not fill_store.is_loaded:
+        return {"loaded": False}
+    return {"loaded": True, "filename": fill_store.filename, "rows": fill_store.rows, "windows": _window_payload()}
 
 
 @router.post("/upload")
@@ -127,15 +124,13 @@ async def push(request: Request):
 
 @router.get("/status")
 async def status():
-    if _state["df"] is None:
-        return {"loaded": False}
-    return {"loaded": True, "filename": _state["filename"], "rows": _state["rows"], "windows": _window_payload()}
+    return _status_payload()
 
 
 def _require_loaded():
-    if _state["df"] is None:
+    if not fill_store.is_loaded:
         raise HTTPException(400, "No fill rate data loaded yet. Upload a file first.")
-    return _state["df"], _state["windows"]
+    return fill_store.df, fill_store.windows
 
 
 @router.get("/brand")
@@ -153,7 +148,7 @@ async def sku_fill_rate(q: Optional[str] = Query(None), brand: Optional[str] = Q
     df, windows = _require_loaded()
     d = df if not brand else df[df["brand"] == brand]
     table = F.fill_rate_table(d, windows, ["item_id"])
-    lookup = _item_lookup(df)
+    lookup = F.item_meta_lookup(df)
     table["item"] = table["item_id"].map(lambda i: lookup.get(i, {}).get("item", ""))
     table["brand"] = table["item_id"].map(lambda i: lookup.get(i, {}).get("brand", ""))
     if q:
@@ -174,7 +169,7 @@ async def wh_item_fill_rate(item_id: Optional[str] = Query(None), wh: Optional[s
     if brand:
         d = d[d["brand"] == brand]
     table = F.fill_rate_table(d, windows, ["wh", "item_id"])
-    lookup = _item_lookup(df)
+    lookup = F.item_meta_lookup(df)
     table["item"] = table["item_id"].map(lambda i: lookup.get(i, {}).get("item", ""))
     table["brand"] = table["item_id"].map(lambda i: lookup.get(i, {}).get("brand", ""))
     table = table.sort_values("ordered_L1", ascending=False)
