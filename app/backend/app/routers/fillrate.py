@@ -4,7 +4,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
-from .. import fillrate as F
+from .. import appsscript, fillrate as F
 from .. import sheets
 from ..util import to_native
 
@@ -82,6 +82,25 @@ async def sync_sheet(sheet_url: str = Form(...), tab_name: Optional[str] = Form(
     if raw.empty:
         raise HTTPException(400, "That sheet/tab came back empty.")
     return _load_raw(raw, f"Google Sheet ({tab_name or 'first tab'})")
+
+
+@router.post("/appsscript-tabs")
+async def appsscript_tabs(webhook_url: str = Form(...), token: str = Form(...)):
+    try:
+        return {"tabs": appsscript.fetch_tabs(webhook_url, token)}
+    except appsscript.AppsScriptError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/appsscript-sync")
+async def appsscript_sync(webhook_url: str = Form(...), token: str = Form(...), tab_name: Optional[str] = Form(None)):
+    try:
+        raw = appsscript.fetch_data(webhook_url, token, tab_name or None)
+    except appsscript.AppsScriptError as e:
+        raise HTTPException(400, str(e))
+    if raw.empty:
+        raise HTTPException(400, "That sheet/tab came back empty.")
+    return _load_raw(raw, f"Apps Script ({tab_name or 'sheet'})")
 
 
 @router.get("/status")

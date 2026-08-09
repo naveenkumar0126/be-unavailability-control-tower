@@ -27,10 +27,132 @@ function clearGoogleParams() {
   window.history.replaceState({}, "", url.toString());
 }
 
+function AppsScriptPanel({
+  tabsEndpoint,
+  syncEndpoint,
+  extraFields,
+  storageKey,
+  onSynced,
+}: {
+  tabsEndpoint: string;
+  syncEndpoint: string;
+  extraFields: Record<string, string>;
+  storageKey: string;
+  onSynced: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState(() => localStorage.getItem(`appsscript_url_${storageKey}`) ?? "");
+  const [token, setToken] = useState(() => localStorage.getItem(`appsscript_token_${storageKey}`) ?? "");
+  const [tabs, setTabs] = useState<string[] | null>(null);
+  const [tab, setTab] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFetchTabs() {
+    if (!webhookUrl.trim() || !token.trim()) return;
+    setBusy(true);
+    setError(null);
+    setTabs(null);
+    try {
+      const res = await postForm(tabsEndpoint, { webhook_url: webhookUrl.trim(), token: token.trim() });
+      setTabs(res.tabs);
+      setTab(res.tabs[0] ?? "");
+      localStorage.setItem(`appsscript_url_${storageKey}`, webhookUrl.trim());
+      localStorage.setItem(`appsscript_token_${storageKey}`, token.trim());
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSync() {
+    setBusy(true);
+    setError(null);
+    try {
+      await postForm(syncEndpoint, { webhook_url: webhookUrl.trim(), token: token.trim(), tab_name: tab, ...extraFields });
+      onSynced();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!expanded) {
+    return (
+      <button onClick={() => setExpanded(true)} className="text-left underline" style={{ color: "var(--text-muted)" }}>
+        Or: sync via an Apps Script webhook →
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 pt-1 border-t" style={{ borderColor: "var(--border)" }}>
+      <div style={{ color: "var(--text-muted)" }}>
+        For orgs that block third-party Google API/OAuth access. Deploy the Apps Script webhook (ask for the
+        template) against your sheet, then paste its URL + secret token below.
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          placeholder="Web App URL (ends in /exec)…"
+          value={webhookUrl}
+          onChange={(e) => setWebhookUrl(e.target.value)}
+          className="flex-1 rounded-md border px-2.5 py-1.5"
+          style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+        />
+        <input
+          placeholder="Secret token…"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          className="w-[160px] rounded-md border px-2.5 py-1.5"
+          style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+        />
+        <button
+          onClick={handleFetchTabs}
+          disabled={busy || !webhookUrl.trim() || !token.trim()}
+          className="rounded-md px-2.5 py-1.5 font-semibold border disabled:opacity-50"
+          style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+        >
+          Find tabs
+        </button>
+      </div>
+      {tabs && (
+        <div className="flex items-center gap-2">
+          <select
+            value={tab}
+            onChange={(e) => setTab(e.target.value)}
+            className="rounded-md border px-2.5 py-1.5"
+            style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+          >
+            {tabs.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleSync}
+            disabled={busy}
+            className="rounded-md px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+            style={{ background: "var(--series-1)" }}
+          >
+            {busy ? "Syncing…" : "Sync this tab"}
+          </button>
+        </div>
+      )}
+      {error && <span style={{ color: "var(--status-critical)" }}>{error}</span>}
+    </div>
+  );
+}
+
 export function GoogleSheetSync({
   syncEndpoint,
   listTabsEndpoint,
   infoEndpoint,
+  appsscriptTabsEndpoint,
+  appsscriptSyncEndpoint,
+  storageKey = "default",
   extraFields = {},
   onSynced,
   compact = false,
@@ -38,6 +160,9 @@ export function GoogleSheetSync({
   syncEndpoint: string;
   listTabsEndpoint: string;
   infoEndpoint?: string;
+  appsscriptTabsEndpoint: string;
+  appsscriptSyncEndpoint: string;
+  storageKey?: string;
   extraFields?: Record<string, string>;
   onSynced: () => void;
   compact?: boolean;
@@ -208,12 +333,22 @@ export function GoogleSheetSync({
         </>
       )}
 
-      <div className="flex items-center gap-2">
-        {error && <span style={{ color: "var(--status-critical)" }}>{error}</span>}
-        <button onClick={() => setOpen(false)} className="ml-auto" style={{ color: "var(--text-muted)" }}>
-          Cancel
-        </button>
-      </div>
+      {error && <span style={{ color: "var(--status-critical)" }}>{error}</span>}
+
+      <AppsScriptPanel
+        tabsEndpoint={appsscriptTabsEndpoint}
+        syncEndpoint={appsscriptSyncEndpoint}
+        extraFields={extraFields}
+        storageKey={storageKey}
+        onSynced={() => {
+          onSynced();
+          setOpen(false);
+        }}
+      />
+
+      <button onClick={() => setOpen(false)} className="self-end" style={{ color: "var(--text-muted)" }}>
+        Cancel
+      </button>
     </div>
   );
 }

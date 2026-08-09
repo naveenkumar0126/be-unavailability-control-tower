@@ -4,7 +4,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from .. import sheets
+from .. import appsscript, sheets
 from ..formulas import DOI_DEFAULT_THRESHOLD, ColumnNotFoundError
 from ..store import get_raw_cache, set_raw_cache, store
 
@@ -136,6 +136,35 @@ async def sync_sheet(
     set_raw_cache(raw)
     try:
         store.load(raw, f"Google Sheet ({tab_name or 'first tab'})", doi_threshold=doi_threshold)
+    except ColumnNotFoundError as e:
+        raise HTTPException(422, str(e))
+    return _status_payload()
+
+
+@router.post("/appsscript-tabs")
+async def appsscript_tabs(webhook_url: str = Form(...), token: str = Form(...)):
+    try:
+        return {"tabs": appsscript.fetch_tabs(webhook_url, token)}
+    except appsscript.AppsScriptError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/appsscript-sync")
+async def appsscript_sync(
+    webhook_url: str = Form(...),
+    token: str = Form(...),
+    tab_name: Optional[str] = Form(None),
+    doi_threshold: float = Form(DOI_DEFAULT_THRESHOLD),
+):
+    try:
+        raw = appsscript.fetch_data(webhook_url, token, tab_name or None)
+    except appsscript.AppsScriptError as e:
+        raise HTTPException(400, str(e))
+    if raw.empty:
+        raise HTTPException(400, "That sheet/tab came back empty.")
+    set_raw_cache(raw)
+    try:
+        store.load(raw, f"Apps Script ({tab_name or 'sheet'})", doi_threshold=doi_threshold)
     except ColumnNotFoundError as e:
         raise HTTPException(422, str(e))
     return _status_payload()

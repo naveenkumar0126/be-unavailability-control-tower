@@ -58,6 +58,9 @@ function UploadPrompt({ onLoaded }: { onLoaded: () => void }) {
           syncEndpoint="/api/fillrate/sync-sheet"
           listTabsEndpoint="/api/fillrate/list-sheet-tabs"
           infoEndpoint="/api/data/sheets-info"
+          appsscriptTabsEndpoint="/api/fillrate/appsscript-tabs"
+          appsscriptSyncEndpoint="/api/fillrate/appsscript-sync"
+          storageKey="fillrate"
           onSynced={onLoaded}
         />
       </div>
@@ -183,6 +186,9 @@ export function FillRate() {
           syncEndpoint="/api/fillrate/sync-sheet"
           listTabsEndpoint="/api/fillrate/list-sheet-tabs"
           infoEndpoint="/api/data/sheets-info"
+          appsscriptTabsEndpoint="/api/fillrate/appsscript-tabs"
+          appsscriptSyncEndpoint="/api/fillrate/appsscript-sync"
+          storageKey="fillrate"
           onSynced={refreshStatus}
           compact
         />

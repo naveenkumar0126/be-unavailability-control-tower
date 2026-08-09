@@ -83,6 +83,9 @@ export function UploadPanel({ status, onLoaded }: { status: DataStatus | null; o
         syncEndpoint="/api/data/sync-sheet"
         listTabsEndpoint="/api/data/list-sheet-tabs"
         infoEndpoint="/api/data/sheets-info"
+        appsscriptTabsEndpoint="/api/data/appsscript-tabs"
+        appsscriptSyncEndpoint="/api/data/appsscript-sync"
+        storageKey="maindata"
         extraFields={{ doi_threshold: String(doiThreshold) }}
         onSynced={onLoaded}
         compact
