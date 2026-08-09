@@ -18,10 +18,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE
-        fromService:
-          type: web
-          name: be-unavailability-backend
-          property: host
+        value: https://be-unavailability-backend.onrender.com
     routes:
       - type: rewrite
         source: /*
