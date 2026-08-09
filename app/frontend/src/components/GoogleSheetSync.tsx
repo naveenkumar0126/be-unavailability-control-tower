@@ -10,6 +10,23 @@ async function postForm(path: string, fields: Record<string, string>) {
   return body;
 }
 
+type GoogleStatus = { configured: boolean; connected: boolean; email: string | null };
+type SaInfo = { configured: boolean; service_account_email?: string; detail?: string };
+
+function urlHasGoogleParam(): "connected" | "error" | null {
+  const p = new URLSearchParams(window.location.search);
+  if (p.has("google_connected")) return "connected";
+  if (p.has("google_error")) return "error";
+  return null;
+}
+
+function clearGoogleParams() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("google_connected");
+  url.searchParams.delete("google_error");
+  window.history.replaceState({}, "", url.toString());
+}
+
 export function GoogleSheetSync({
   syncEndpoint,
   listTabsEndpoint,
@@ -25,25 +42,38 @@ export function GoogleSheetSync({
   onSynced: () => void;
   compact?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => urlHasGoogleParam() !== null);
   const [url, setUrl] = useState("");
   const [tabs, setTabs] = useState<string[] | null>(null);
   const [tab, setTab] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saEmail, setSaEmail] = useState<string | null>(null);
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
+  const [saInfo, setSaInfo] = useState<SaInfo | null>(null);
+
+  function refreshStatus() {
+    fetch(API_BASE + "/api/google/status")
+      .then((r) => r.json())
+      .then(setGoogle)
+      .catch(() => setGoogle({ configured: false, connected: false, email: null }));
+    if (infoEndpoint) {
+      fetch(API_BASE + infoEndpoint)
+        .then((r) => r.json())
+        .then(setSaInfo)
+        .catch(() => setSaInfo({ configured: false }));
+    }
+  }
 
   useEffect(() => {
-    if (!open || !infoEndpoint || configured !== null) return;
-    fetch(API_BASE + infoEndpoint)
-      .then((r) => r.json())
-      .then((d) => {
-        setConfigured(!!d.configured);
-        setSaEmail(d.service_account_email ?? null);
-      })
-      .catch(() => setConfigured(false));
-  }, [open, infoEndpoint, configured]);
+    if (!open) return;
+    refreshStatus();
+    const param = urlHasGoogleParam();
+    if (param === "error") {
+      const p = new URLSearchParams(window.location.search);
+      setError(p.get("google_error"));
+    }
+    if (param) clearGoogleParams();
+  }, [open]);
 
   async function handleFetchTabs() {
     if (!url.trim()) return;
@@ -87,62 +117,97 @@ export function GoogleSheetSync({
     );
   }
 
+  const canPickSheet = google?.connected || saInfo?.configured;
+
   return (
     <div
       className="flex flex-col gap-2 rounded-lg border p-3 text-[11.5px]"
       style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}
     >
-      {configured === false && (
-        <div style={{ color: "var(--status-critical)" }}>
-          Google Sheets isn't configured on the backend yet (no service account credentials set).
-        </div>
-      )}
-      {saEmail && (
+      {google === null ? (
+        <div style={{ color: "var(--text-muted)" }}>Checking Google access…</div>
+      ) : google.connected ? (
         <div style={{ color: "var(--text-secondary)" }}>
-          Share your sheet (Viewer is enough) with: <b style={{ color: "var(--text-primary)" }}>{saEmail}</b>
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <input
-          placeholder="Paste Google Sheet URL…"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className="flex-1 rounded-md border px-2.5 py-1.5"
-          style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
-        />
-        <button
-          onClick={handleFetchTabs}
-          disabled={busy || !url.trim()}
-          className="rounded-md px-2.5 py-1.5 font-semibold border disabled:opacity-50"
-          style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-        >
-          Find tabs
-        </button>
-      </div>
-      {tabs && (
-        <div className="flex items-center gap-2">
-          <select
-            value={tab}
-            onChange={(e) => setTab(e.target.value)}
-            className="rounded-md border px-2.5 py-1.5"
-            style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
-          >
-            {tabs.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          Connected as <b style={{ color: "var(--text-primary)" }}>{google.email}</b>
           <button
-            onClick={handleSync}
-            disabled={busy}
-            className="rounded-md px-3 py-1.5 font-semibold text-white disabled:opacity-50"
-            style={{ background: "var(--series-1)" }}
+            onClick={async () => {
+              await fetch(API_BASE + "/api/google/disconnect", { method: "POST" });
+              refreshStatus();
+            }}
+            className="ml-2 underline"
+            style={{ color: "var(--text-muted)" }}
           >
-            {busy ? "Syncing…" : "Sync this tab"}
+            disconnect
           </button>
         </div>
+      ) : saInfo?.configured ? (
+        <div style={{ color: "var(--text-secondary)" }}>
+          Share your sheet (Viewer is enough) with:{" "}
+          <b style={{ color: "var(--text-primary)" }}>{saInfo.service_account_email}</b>
+        </div>
+      ) : google.configured ? (
+        <div className="flex items-center gap-2">
+          <span style={{ color: "var(--text-secondary)" }}>Sign in with the Google account that can see your sheet:</span>
+          <a
+            href={`${API_BASE}/api/google/login`}
+            className="rounded-md px-3 py-1.5 font-semibold text-white"
+            style={{ background: "var(--series-1)" }}
+          >
+            Connect Google Account
+          </a>
+        </div>
+      ) : (
+        <div style={{ color: "var(--status-critical)" }}>
+          Google access isn't configured on the backend yet (no OAuth client or service account credentials set).
+        </div>
       )}
+
+      {canPickSheet && (
+        <>
+          <div className="flex items-center gap-2">
+            <input
+              placeholder="Paste Google Sheet URL…"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-1 rounded-md border px-2.5 py-1.5"
+              style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+            />
+            <button
+              onClick={handleFetchTabs}
+              disabled={busy || !url.trim()}
+              className="rounded-md px-2.5 py-1.5 font-semibold border disabled:opacity-50"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+            >
+              Find tabs
+            </button>
+          </div>
+          {tabs && (
+            <div className="flex items-center gap-2">
+              <select
+                value={tab}
+                onChange={(e) => setTab(e.target.value)}
+                className="rounded-md border px-2.5 py-1.5"
+                style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+              >
+                {tabs.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleSync}
+                disabled={busy}
+                className="rounded-md px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                style={{ background: "var(--series-1)" }}
+              >
+                {busy ? "Syncing…" : "Sync this tab"}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       <div className="flex items-center gap-2">
         {error && <span style={{ color: "var(--status-critical)" }}>{error}</span>}
         <button onClick={() => setOpen(false)} className="ml-auto" style={{ color: "var(--text-muted)" }}>

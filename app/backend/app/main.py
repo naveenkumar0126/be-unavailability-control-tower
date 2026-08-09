@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import data, fillrate, views
+from .routers import data, fillrate, google_auth, views
 
 app = FastAPI(title="BE Unavailability Dashboard API")
 
@@ -25,6 +25,7 @@ app.add_middleware(
 app.include_router(data.router)
 app.include_router(views.router)
 app.include_router(fillrate.router)
+app.include_router(google_auth.router)
 
 
 @app.get("/api/health")

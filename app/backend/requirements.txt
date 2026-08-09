@@ -5,3 +5,5 @@ openpyxl
 python-multipart
 gspread
 google-auth
+google-auth-oauthlib
+requests
