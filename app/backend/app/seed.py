@@ -8,6 +8,8 @@ just the starting state.
 from __future__ import annotations
 
 import io
+import sys
+import traceback
 
 import pandas as pd
 
@@ -23,6 +25,11 @@ FESTIVE_PTYPES = {
     "Sabudana Tikki": seed_data.FESTIVE_SABUDANA_CSV,
 }
 
+# Populated with "<ptype>: <error>" strings if seeding fails for any file, so
+# the failure is visible via /api/festive/status (and Render's logs) instead
+# of silently leaving the store empty.
+seed_errors: list[str] = []
+
 
 def load_seed_data() -> None:
     if not inbound_store.is_loaded:
@@ -30,8 +37,11 @@ def load_seed_data() -> None:
             raw = pd.read_csv(io.StringIO(seed_data.INBOUND_UTIL_CSV))
             df = load_inbound_df(raw)
             inbound_store.load(df, "Seed: Inbound_Util - DOD_Tracker_1.csv")
-        except Exception:  # noqa: BLE001 - seed data must never crash startup
-            pass
+        except Exception as e:  # noqa: BLE001 - seed data must never crash startup
+            msg = f"inbound: {e!r}"
+            seed_errors.append(msg)
+            print(f"[seed] FAILED to load {msg}", file=sys.stderr)
+            traceback.print_exc()
 
     if not festive_store.is_loaded:
         for ptype, csv_text in FESTIVE_PTYPES.items():
@@ -39,5 +49,8 @@ def load_seed_data() -> None:
                 raw = pd.read_csv(io.StringIO(csv_text))
                 df = load_festive_df(raw, ptype)
                 festive_store.load(ptype, df)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as e:  # noqa: BLE001
+                msg = f"{ptype}: {e!r}"
+                seed_errors.append(msg)
+                print(f"[seed] FAILED to load {msg}", file=sys.stderr)
+                traceback.print_exc()

@@ -10,6 +10,7 @@ from .. import inbound_util as IU
 from ..fillrate_store import fill_store
 from ..festive_store import festive_store
 from ..inbound_store import inbound_store
+from ..seed import seed_errors
 from ..store import store
 from ..util import to_native
 from ..warehouse_map import code_for_name
@@ -50,7 +51,8 @@ async def inbound_upload(file: UploadFile = File(...)):
 @router.get("/api/inbound/status")
 async def inbound_status():
     if not inbound_store.is_loaded:
-        return {"loaded": False}
+        errs = [e for e in seed_errors if e.startswith("inbound:")]
+        return {"loaded": False, "seed_errors": errs}
     return {"loaded": True, "filename": inbound_store.filename, "rows": len(inbound_store.df)}
 
 
@@ -104,7 +106,8 @@ async def festive_upload(file: UploadFile = File(...), ptype: str = Form(...)):
 @router.get("/api/festive/status")
 async def festive_status():
     if not festive_store.is_loaded:
-        return {"loaded": False, "ptypes": []}
+        errs = [e for e in seed_errors if not e.startswith("inbound:")]
+        return {"loaded": False, "ptypes": [], "seed_errors": errs}
     return {
         "loaded": True,
         "ptypes": [{"ptype": p, "rows": len(d)} for p, d in festive_store.sets.items()],
