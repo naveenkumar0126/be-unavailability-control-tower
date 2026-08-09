@@ -10,6 +10,7 @@ import { Rollup } from "./views/Rollup";
 import { Matrix } from "./views/Matrix";
 import { WhItem } from "./views/WhItem";
 import { Detail } from "./views/Detail";
+import { FillRate } from "./views/FillRate";
 
 const TABS = [
   { key: "action", label: "⚡ Action Board" },
@@ -18,6 +19,7 @@ const TABS = [
   { key: "brand", label: "Brand" },
   { key: "matrix", label: "Brand × WH" },
   { key: "whitem", label: "Warehouse × Item" },
+  { key: "fillrate", label: "🚚 Fill Rate" },
   { key: "wh", label: "Warehouse" },
   { key: "region", label: "Region" },
   { key: "detail", label: "Detail" },
@@ -62,6 +64,7 @@ export function AvailabilityWorkspace({ status, dataVersion }: { status: DataSta
         {tab === "brand" && <Rollup filters={filters} by="brand" dataVersion={dataVersion} />}
         {tab === "matrix" && <Matrix filters={filters} dataVersion={dataVersion} />}
         {tab === "whitem" && <WhItem filters={filters} brands={status.facets?.brands ?? []} dataVersion={dataVersion} />}
+        {tab === "fillrate" && <FillRate />}
         {tab === "wh" && <Rollup filters={filters} by="wh" dataVersion={dataVersion} />}
         {tab === "region" && <Rollup filters={filters} by="region" dataVersion={dataVersion} />}
         {tab === "detail" && <Detail filters={filters} dataVersion={dataVersion} />}

@@ -208,3 +208,50 @@ export const api = {
     get<WhItemResponse>(`/api/views/wh-item?${qs(f, { drill_brand: drillBrand, top_n: topN })}`),
   detail: (f: Filters, limit = 5000) => get<DetailRow[]>(`/api/views/detail?${qs(f, { limit })}`),
 };
+
+export type FillWindow = { start: string; end: string };
+export type FillStatus = {
+  loaded: boolean;
+  filename?: string;
+  rows?: number;
+  windows?: { L1: FillWindow; L2: FillWindow; L15: FillWindow; max_date: string; cutoff: string };
+};
+
+export type FillRow = {
+  ordered_L1: number; grn_L1: number; lines_L1: number; fill_L1: number;
+  ordered_L2: number; grn_L2: number; lines_L2: number; fill_L2: number;
+  ordered_L15: number; grn_L15: number; lines_L15: number; fill_L15: number;
+};
+export type BrandFillRow = FillRow & { brand: string };
+export type SkuFillRow = FillRow & { item_id: string; item: string; brand: string };
+export type WhItemFillRow = FillRow & { wh: string; item_id: string; item: string; brand: string };
+
+export const fillRateApi = {
+  status: () => get<FillStatus>("/api/fillrate/status"),
+  upload: async (file: File): Promise<FillStatus> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(API_BASE + "/api/fillrate/upload", { method: "POST", body: fd });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  },
+  brand: (q?: string) => get<BrandFillRow[]>(`/api/fillrate/brand${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  sku: (q?: string, brand?: string) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (brand) p.set("brand", brand);
+    return get<SkuFillRow[]>(`/api/fillrate/sku?${p.toString()}`);
+  },
+  whItem: (opts: { itemId?: string; wh?: string; brand?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.itemId) p.set("item_id", opts.itemId);
+    if (opts.wh) p.set("wh", opts.wh);
+    if (opts.brand) p.set("brand", opts.brand);
+    return get<WhItemFillRow[]>(`/api/fillrate/wh-item?${p.toString()}`);
+  },
+  warehouses: () => get<string[]>("/api/fillrate/warehouses"),
+  brands: () => get<string[]>("/api/fillrate/brands"),
+};
