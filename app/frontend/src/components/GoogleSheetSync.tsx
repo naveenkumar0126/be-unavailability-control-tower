@@ -282,8 +282,11 @@ export function GoogleSheetSync({
           </a>
         </div>
       ) : (
-        <div style={{ color: "var(--status-critical)" }}>
-          Google access isn't configured on the backend yet (no OAuth client or service account credentials set).
+        <div style={{ color: "var(--text-secondary)" }}>
+          Neither OAuth nor a service account is set up for pulling from here. If your org blocks both (common with
+          locked-down Workspace policies), use the <b style={{ color: "var(--text-primary)" }}>Apps Script push</b>{" "}
+          method instead — deploy <code>appsscript-push-template.gs</code> against your sheet and run its "Sync now"
+          menu; data lands here automatically, no action needed in this panel at all.
         </div>
       )}
 
