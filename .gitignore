@@ -2,7 +2,7 @@
 *.xlsx
 *.xls
 *.csv
-index.html
+/index.html
 
 # Python
 app/backend/venv/
