@@ -1,9 +1,10 @@
 import clsx from "clsx";
 
-export type ViewKey = "availability" | "tags" | "festive";
+export type ViewKey = "availability" | "purchase_manager" | "tags" | "festive";
 
 const VIEWS: { key: ViewKey; label: string; icon: string; enabled: boolean }[] = [
   { key: "availability", label: "Availability", icon: "📊", enabled: true },
+  { key: "purchase_manager", label: "Purchase Manager", icon: "🎯", enabled: true },
   { key: "tags", label: "Tags & Reasons", icon: "🏷️", enabled: false },
   { key: "festive", label: "Festive", icon: "🎉", enabled: false },
 ];

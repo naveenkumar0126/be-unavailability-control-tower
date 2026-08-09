@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # when the file doesn't exist.
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from .routers import data, fillrate, google_auth, views  # noqa: E402
+from .routers import data, fillrate, google_auth, purchase_manager, views  # noqa: E402
 
 app = FastAPI(title="BE Unavailability Dashboard API")
 
@@ -33,6 +33,7 @@ app.include_router(data.router)
 app.include_router(views.router)
 app.include_router(fillrate.router)
 app.include_router(google_auth.router)
+app.include_router(purchase_manager.router)
 
 
 @app.get("/api/health")

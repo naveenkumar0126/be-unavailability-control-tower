@@ -83,7 +83,28 @@ def load_fill_df(raw: pd.DataFrame) -> pd.DataFrame:
     df["date"] = pd.to_datetime(raw["po_date"], errors="coerce")
     df["ordered"] = pd.to_numeric(raw["quantity_ordered"], errors="coerce").fillna(0)
     df["grn"] = pd.to_numeric(raw["grn_quantity"], errors="coerce").fillna(0)
+    if "expected_delivery_date" in raw.columns:
+        df["expected_delivery"] = pd.to_datetime(raw["expected_delivery_date"], errors="coerce")
+    else:
+        df["expected_delivery"] = pd.NaT
+    if "po_status" in raw.columns:
+        df["po_status"] = raw["po_status"].astype(str).str.strip()
+    else:
+        df["po_status"] = ""
     return df.dropna(subset=["date"]).reset_index(drop=True)
+
+
+def deliveries_on(df: pd.DataFrame, target_date: pd.Timestamp) -> pd.DataFrame:
+    """PO lines whose expected_delivery_date falls on target_date, grouped
+    by warehouse x brand x item (ordered qty, distinct PO count)."""
+    d = df[df["expected_delivery"].dt.date == target_date.date()]
+    if d.empty:
+        return pd.DataFrame(columns=["wh", "brand", "item", "item_id", "ordered", "po_lines"])
+    g = d.groupby(["wh", "brand", "item", "item_id"], dropna=False).agg(
+        ordered=("ordered", "sum"),
+        po_lines=("ordered", "size"),
+    ).reset_index()
+    return g.sort_values("ordered", ascending=False)
 
 
 def compute_windows(df: pd.DataFrame, buffer_dates: int = DATE_BUFFER) -> dict:

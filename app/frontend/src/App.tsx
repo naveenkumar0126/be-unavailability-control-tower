@@ -3,6 +3,7 @@ import { Sidebar, type ViewKey } from "./components/Sidebar";
 import { UploadPanel } from "./components/UploadPanel";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AvailabilityWorkspace } from "./AvailabilityWorkspace";
+import { PurchaseManagerWorkspace } from "./PurchaseManagerWorkspace";
 import { api, type DataStatus } from "./lib/api";
 
 function ComingSoon({ label }: { label: string }) {
@@ -66,6 +67,18 @@ export default function App() {
                   No data loaded yet
                 </div>
                 <div className="text-[12px]">Upload a CSV or Excel file above to get started.</div>
+              </div>
+            ))}
+          {view === "purchase_manager" &&
+            (status?.loaded ? (
+              <PurchaseManagerWorkspace status={status} />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 py-24" style={{ color: "var(--text-muted)" }}>
+                <div className="text-[40px]">📂</div>
+                <div className="text-[14px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  No data loaded yet
+                </div>
+                <div className="text-[12px]">Upload the main Availability file above first — this workspace uses its warehouse list.</div>
               </div>
             ))}
           {view === "tags" && <ComingSoon label="Tags & Reasons" />}

@@ -299,3 +299,113 @@ export const fillRateApi = {
   warehouses: () => get<string[]>("/api/fillrate/warehouses"),
   brands: () => get<string[]>("/api/fillrate/brands"),
 };
+
+// ---------------- Purchase Manager ----------------
+
+export type InboundStatus = { loaded: boolean; filename?: string; rows?: number };
+export type InboundRow = {
+  date: string;
+  wh: string;
+  zone: string;
+  cap: number;
+  planned: number;
+  grn: number;
+  failed: number;
+  utilization_pct: number;
+  is_low: boolean;
+};
+export type InboundSummaryRow = {
+  wh: string;
+  zone: string;
+  days: number;
+  avg_planned: number;
+  avg_grn: number;
+  avg_utilization: number;
+  low_days: number;
+};
+
+export type FestiveStatus = { loaded: boolean; ptypes: { ptype: string; rows: number }[] };
+export type FestiveRow = {
+  wh: string;
+  brand: string;
+  item: string;
+  inventory: number;
+  fe_inventory: number;
+  cpd: number;
+  open_po: number;
+  projection: number;
+  bau_safety: number;
+  need: number;
+  requirement: number;
+  ach_be: number;
+  ach_po: number;
+  remark: string;
+  ptype: string;
+  region: string;
+};
+
+export type FocusItemRow = {
+  wh: string;
+  brand: string;
+  item: string;
+  region: string;
+  category: string;
+  cpd: number;
+  inventory: number;
+  doi: number;
+  open_po: number;
+  is_unavail: boolean;
+};
+
+export type DeliveryRow = {
+  wh: string;
+  brand: string;
+  item: string;
+  item_id: string;
+  ordered: number;
+  po_lines: number;
+};
+
+function whParams(wh?: string[]): string {
+  const p = new URLSearchParams();
+  wh?.forEach((w) => p.append("wh", w));
+  return p.toString();
+}
+
+export const pmApi = {
+  inboundStatus: () => get<InboundStatus>("/api/inbound/status"),
+  inboundUpload: async (file: File): Promise<InboundStatus> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(API_BASE + "/api/inbound/upload", { method: "POST", body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `Upload failed: ${res.status}`);
+    return res.json();
+  },
+  inboundUtilization: (wh?: string[], days = 7) =>
+    get<InboundRow[]>(`/api/inbound/utilization?${whParams(wh)}&days=${days}`),
+  inboundSummary: (wh?: string[], days = 7) =>
+    get<InboundSummaryRow[]>(`/api/inbound/summary?${whParams(wh)}&days=${days}`),
+
+  festiveStatus: () => get<FestiveStatus>("/api/festive/status"),
+  festiveUpload: async (file: File, ptype: string): Promise<any> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("ptype", ptype);
+    const res = await fetch(API_BASE + "/api/festive/upload", { method: "POST", body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `Upload failed: ${res.status}`);
+    return res.json();
+  },
+  festiveRequirements: (wh?: string[]) => {
+    const p = new URLSearchParams(whParams(wh));
+    return get<FestiveRow[]>(`/api/festive/requirements?${p.toString()}`);
+  },
+
+  focusItems: (wh?: string[], doiMax = 3, topN = 30) => {
+    const p = new URLSearchParams(whParams(wh));
+    p.append("doi_max", String(doiMax));
+    p.append("top_n", String(topN));
+    return get<FocusItemRow[]>(`/api/pm/focus-items?${p.toString()}`);
+  },
+  deliveriesToday: (wh?: string[]) =>
+    get<{ date: string; rows: DeliveryRow[] }>(`/api/pm/deliveries-today?${whParams(wh)}`),
+};
