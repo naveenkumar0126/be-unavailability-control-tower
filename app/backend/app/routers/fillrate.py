@@ -2,14 +2,31 @@ import io
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from .. import fillrate as F
+from .. import sheets
 from ..util import to_native
 
 router = APIRouter(prefix="/api/fillrate", tags=["fillrate"])
 
 _state: dict = {"df": None, "windows": None, "filename": None, "rows": 0}
+
+
+def _load_raw(raw: pd.DataFrame, filename: str) -> dict:
+    try:
+        df = F.load_fill_df(raw)
+        windows = F.compute_windows(df)
+    except KeyError as e:
+        raise HTTPException(422, f"Missing expected column: {e}")
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    _state["df"] = df
+    _state["windows"] = windows
+    _state["filename"] = filename
+    _state["rows"] = len(df)
+    return {"loaded": True, "filename": filename, "rows": len(df), "windows": _window_payload()}
 
 
 def _item_lookup(df: pd.DataFrame) -> dict:
@@ -37,20 +54,34 @@ async def upload(file: UploadFile = File(...)):
             raw = pd.read_excel(io.BytesIO(content))
         else:
             raise HTTPException(400, "Unsupported file type - upload a .csv or .xlsx file.")
-        df = F.load_fill_df(raw)
-        windows = F.compute_windows(df)
     except HTTPException:
         raise
-    except KeyError as e:
-        raise HTTPException(422, f"Missing expected column: {e}")
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"Could not parse file: {e}")
+    return _load_raw(raw, name)
 
-    _state["df"] = df
-    _state["windows"] = windows
-    _state["filename"] = name
-    _state["rows"] = len(df)
-    return {"loaded": True, "filename": name, "rows": len(df), "windows": _window_payload()}
+
+@router.post("/list-sheet-tabs")
+async def list_sheet_tabs(sheet_url: str = Form(...)):
+    try:
+        return {"tabs": sheets.list_tabs(sheet_url)}
+    except sheets.SheetsNotConfigured as e:
+        raise HTTPException(400, str(e))
+    except sheets.SheetAccessError as e:
+        raise HTTPException(403, str(e))
+
+
+@router.post("/sync-sheet")
+async def sync_sheet(sheet_url: str = Form(...), tab_name: Optional[str] = Form(None)):
+    try:
+        raw = sheets.fetch_sheet_as_df(sheet_url, tab_name or None)
+    except sheets.SheetsNotConfigured as e:
+        raise HTTPException(400, str(e))
+    except sheets.SheetAccessError as e:
+        raise HTTPException(403, str(e))
+    if raw.empty:
+        raise HTTPException(400, "That sheet/tab came back empty.")
+    return _load_raw(raw, f"Google Sheet ({tab_name or 'first tab'})")
 
 
 @router.get("/status")

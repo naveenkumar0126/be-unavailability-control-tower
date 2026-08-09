@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, type DataStatus } from "../lib/api";
+import { GoogleSheetSync } from "./GoogleSheetSync";
 
 export function UploadPanel({ status, onLoaded }: { status: DataStatus | null; onLoaded: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -56,10 +57,8 @@ export function UploadPanel({ status, onLoaded }: { status: DataStatus | null; o
   }
 
   return (
-    <div
-      className="flex items-center gap-3 px-4 py-2 border-b text-[12px]"
-      style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}
-    >
+    <div className="flex flex-col gap-2 px-4 py-2 border-b text-[12px]" style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
+    <div className="flex items-center gap-3">
       <input
         ref={fileRef}
         type="file"
@@ -79,6 +78,15 @@ export function UploadPanel({ status, onLoaded }: { status: DataStatus | null; o
       >
         {busy ? "Working…" : status?.loaded ? "Replace data" : "Upload data (CSV/XLSX)"}
       </button>
+
+      <GoogleSheetSync
+        syncEndpoint="/api/data/sync-sheet"
+        listTabsEndpoint="/api/data/list-sheet-tabs"
+        infoEndpoint="/api/data/sheets-info"
+        extraFields={{ doi_threshold: String(doiThreshold) }}
+        onSynced={onLoaded}
+        compact
+      />
 
       {pendingSheets && (
         <div className="flex items-center gap-2">
@@ -127,6 +135,7 @@ export function UploadPanel({ status, onLoaded }: { status: DataStatus | null; o
           {status.filename} · {status.rows?.toLocaleString()} rows
         </span>
       )}
+    </div>
     </div>
   );
 }

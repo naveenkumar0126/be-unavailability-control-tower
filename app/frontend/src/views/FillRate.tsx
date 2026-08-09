@@ -3,6 +3,7 @@ import { fillRateApi, type FillStatus, type BrandFillRow, type SkuFillRow } from
 import { DataTable, type Column } from "../components/DataTable";
 import { SeverityPill } from "../components/Pill";
 import { availColor, fmtNum } from "../lib/format";
+import { GoogleSheetSync } from "../components/GoogleSheetSync";
 
 type Mode = "brand" | "sku";
 
@@ -44,14 +45,22 @@ function UploadPrompt({ onLoaded }: { onLoaded: () => void }) {
           e.target.value = "";
         }}
       />
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={busy}
-        className="rounded-md px-4 py-2 text-[12px] font-semibold border disabled:opacity-50"
-        style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
-      >
-        {busy ? "Uploading & computing…" : "Upload fill rate CSV/XLSX"}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="rounded-md px-4 py-2 text-[12px] font-semibold border disabled:opacity-50"
+          style={{ borderColor: "var(--border)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+        >
+          {busy ? "Uploading & computing…" : "Upload fill rate CSV/XLSX"}
+        </button>
+        <GoogleSheetSync
+          syncEndpoint="/api/fillrate/sync-sheet"
+          listTabsEndpoint="/api/fillrate/list-sheet-tabs"
+          infoEndpoint="/api/data/sheets-info"
+          onSynced={onLoaded}
+        />
+      </div>
       {error && <span style={{ color: "var(--status-critical)" }}>{error}</span>}
     </div>
   );
@@ -170,6 +179,13 @@ export function FillRate() {
             }}
           />
         </label>
+        <GoogleSheetSync
+          syncEndpoint="/api/fillrate/sync-sheet"
+          listTabsEndpoint="/api/fillrate/list-sheet-tabs"
+          infoEndpoint="/api/data/sheets-info"
+          onSynced={refreshStatus}
+          compact
+        />
       </div>
 
       {mode === "brand" ? (

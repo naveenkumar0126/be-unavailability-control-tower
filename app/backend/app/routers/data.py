@@ -4,6 +4,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from .. import sheets
 from ..formulas import DOI_DEFAULT_THRESHOLD, ColumnNotFoundError
 from ..store import get_raw_cache, set_raw_cache, store
 
@@ -93,6 +94,48 @@ async def set_doi_threshold(threshold: float = Form(...)):
         raise HTTPException(400, "No data loaded yet.")
     try:
         store.set_doi_threshold(threshold, raw)
+    except ColumnNotFoundError as e:
+        raise HTTPException(422, str(e))
+    return _status_payload()
+
+
+@router.get("/sheets-info")
+async def sheets_info():
+    try:
+        return {"configured": True, "service_account_email": sheets.service_account_email()}
+    except sheets.SheetsNotConfigured as e:
+        return {"configured": False, "detail": str(e)}
+
+
+@router.post("/list-sheet-tabs")
+async def list_sheet_tabs(sheet_url: str = Form(...)):
+    try:
+        return {"tabs": sheets.list_tabs(sheet_url)}
+    except sheets.SheetsNotConfigured as e:
+        raise HTTPException(400, str(e))
+    except sheets.SheetAccessError as e:
+        raise HTTPException(403, str(e))
+
+
+@router.post("/sync-sheet")
+async def sync_sheet(
+    sheet_url: str = Form(...),
+    tab_name: Optional[str] = Form(None),
+    doi_threshold: float = Form(DOI_DEFAULT_THRESHOLD),
+):
+    try:
+        raw = sheets.fetch_sheet_as_df(sheet_url, tab_name or None)
+    except sheets.SheetsNotConfigured as e:
+        raise HTTPException(400, str(e))
+    except sheets.SheetAccessError as e:
+        raise HTTPException(403, str(e))
+
+    if raw.empty:
+        raise HTTPException(400, "That sheet/tab came back empty.")
+
+    set_raw_cache(raw)
+    try:
+        store.load(raw, f"Google Sheet ({tab_name or 'first tab'})", doi_threshold=doi_threshold)
     except ColumnNotFoundError as e:
         raise HTTPException(422, str(e))
     return _status_payload()

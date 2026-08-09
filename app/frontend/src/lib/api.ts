@@ -135,7 +135,7 @@ export type DetailRow = {
 // backend's own host, since a relative /api path would otherwise hit the
 // static frontend's own origin instead of the backend.
 const RAW_BASE = import.meta.env.VITE_API_BASE as string | undefined;
-const API_BASE = RAW_BASE ? (RAW_BASE.startsWith("http") ? RAW_BASE : `https://${RAW_BASE}`) : "";
+export const API_BASE = RAW_BASE ? (RAW_BASE.startsWith("http") ? RAW_BASE : `https://${RAW_BASE}`) : "";
 
 function qs(filters: Filters, extra: Record<string, string | number | undefined> = {}): string {
   const p = new URLSearchParams();

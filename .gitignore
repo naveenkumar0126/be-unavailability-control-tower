@@ -9,6 +9,11 @@ app/backend/venv/
 app/backend/**/__pycache__/
 *.pyc
 
+# Secrets - Google service account key, if kept as a local file instead of an env var
+*service-account*.json
+*credentials*.json
+.env
+
 # Node / frontend
 app/frontend/node_modules/
 app/frontend/dist/
