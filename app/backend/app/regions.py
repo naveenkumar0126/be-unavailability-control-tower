@@ -50,8 +50,8 @@ REGION_KEYWORDS = [
 ]
 
 
-def region_of(warehouse: str) -> str:
-    if not warehouse:
+def region_of(warehouse) -> str:
+    if not isinstance(warehouse, str) or not warehouse:
         return "Unmapped"
     if warehouse in REGION_MAP:
         return REGION_MAP[warehouse]

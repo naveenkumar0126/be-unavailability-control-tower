@@ -367,10 +367,29 @@ export type DeliveryRow = {
 };
 
 export type PmOverview = {
-  focus_items: { count: number; at_risk_cpd: number } | null;
-  inbound: { avg_utilization: number; low_wh_count: number; wh_count: number } | null;
-  festive: { total_requirement: number; ptype_count: number; row_count: number } | null;
-  deliveries: { total_units: number; po_lines: number; row_count: number } | null;
+  focus_items: {
+    count: number;
+    at_risk_cpd: number;
+    top: { wh: string; brand: string; item: string; cpd: number; doi: number; inventory: number }[];
+  } | null;
+  inbound: {
+    avg_utilization: number;
+    low_wh_count: number;
+    wh_count: number;
+    top: { wh: string; zone: string; avg_utilization: number; avg_planned: number; avg_grn: number }[];
+  } | null;
+  festive: {
+    total_requirement: number;
+    ptype_count: number;
+    row_count: number;
+    top: { wh: string; brand: string; item: string; ptype: string; requirement: number }[];
+  } | null;
+  deliveries: {
+    total_units: number;
+    po_lines: number;
+    row_count: number;
+    top: { wh: string; brand: string; item: string; ordered: number; po_lines: number }[];
+  } | null;
 };
 
 function whParams(wh?: string[]): string {

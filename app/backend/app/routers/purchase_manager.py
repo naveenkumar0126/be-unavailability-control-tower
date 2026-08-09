@@ -166,23 +166,32 @@ async def pm_overview(wh: Optional[list[str]] = Query(None)):
         codes = {code_for_name(w) for w in wh}
         codes.discard(None)
 
+    TOP_N = 5
+
     focus = None
     if store.is_loaded:
         d = store.df
         if wh:
             d = d[d["wh"].isin(wh)]
         low = d[d["doi"] < 3]
-        focus = {"count": int(len(low)), "at_risk_cpd": float(low["cpd"].sum())}
+        top = low.sort_values("cpd", ascending=False).head(TOP_N)
+        focus = {
+            "count": int(len(low)),
+            "at_risk_cpd": float(low["cpd"].sum()),
+            "top": top[["wh", "brand", "item", "cpd", "doi", "inventory"]].to_dict("records"),
+        }
 
     inbound = None
     if inbound_store.is_loaded:
         g = IU.wh_summary(inbound_store.df, 7)
         if codes:
             g = g[g["wh"].isin(codes)]
+        top = g.head(TOP_N)  # wh_summary is already sorted worst-utilization-first
         inbound = {
             "avg_utilization": float(g["avg_utilization"].mean()) if len(g) else 0.0,
             "low_wh_count": int((g["avg_utilization"] < IU.LOW_UTILIZATION_THRESHOLD).sum()),
             "wh_count": int(len(g)),
+            "top": top[["wh", "zone", "avg_utilization", "avg_planned", "avg_grn"]].to_dict("records"),
         }
 
     festive = None
@@ -191,10 +200,12 @@ async def pm_overview(wh: Optional[list[str]] = Query(None)):
         if wh:
             df = df[df["wh"].isin(wh)]
         df = df[df["requirement"] > 0]
+        top = df.sort_values("requirement", ascending=False).head(TOP_N)
         festive = {
             "total_requirement": float(df["requirement"].sum()),
             "ptype_count": int(df["ptype"].nunique()),
             "row_count": int(len(df)),
+            "top": top[["wh", "brand", "item", "ptype", "requirement"]].to_dict("records"),
         }
 
     deliveries = None
@@ -203,10 +214,12 @@ async def pm_overview(wh: Optional[list[str]] = Query(None)):
         d = FR.deliveries_on(fill_store.df, target)
         if codes:
             d = d[d["wh"].isin(codes)]
+        top = d.head(TOP_N)  # deliveries_on is already sorted largest-order-first
         deliveries = {
             "total_units": float(d["ordered"].sum()),
             "po_lines": int(d["po_lines"].sum()) if len(d) else 0,
             "row_count": int(len(d)),
+            "top": top[["wh", "brand", "item", "ordered", "po_lines"]].to_dict("records"),
         }
 
     return to_native({"focus_items": focus, "inbound": inbound, "festive": festive, "deliveries": deliveries})

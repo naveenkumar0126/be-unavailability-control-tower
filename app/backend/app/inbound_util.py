@@ -40,9 +40,9 @@ def load_inbound_df(raw: pd.DataFrame) -> pd.DataFrame:
 
     df = pd.DataFrame()
     df["date"] = pd.to_datetime(raw[col("date")], errors="coerce", format="mixed", dayfirst=True)
-    df["wh"] = raw[col("wh")].astype(str).str.strip()
+    df["wh"] = raw[col("wh")].fillna("").astype(str).str.strip()
     zone_col = col("zone", required=False)
-    df["zone"] = raw[zone_col].astype(str).str.strip() if zone_col else ""
+    df["zone"] = raw[zone_col].fillna("").astype(str).str.strip() if zone_col else ""
     df["cap"] = parse_numeric(raw[col("cap")])
     df["planned"] = parse_numeric(raw[col("planned")])
     df["grn"] = parse_numeric(raw[col("grn")])

@@ -44,11 +44,11 @@ def load_festive_df(raw: pd.DataFrame, ptype: str) -> pd.DataFrame:
         return found
 
     df = pd.DataFrame()
-    df["wh"] = raw[col("wh")].astype(str).str.strip()
-    df["brand"] = raw[col("brand")].astype(str).str.strip()
+    df["wh"] = raw[col("wh")].fillna("").astype(str).str.strip()
+    df["brand"] = raw[col("brand")].fillna("").astype(str).str.strip()
 
     item_col = col("item", required=False)
-    df["item"] = raw[item_col].astype(str).str.strip() if item_col is not None else df["brand"]
+    df["item"] = raw[item_col].fillna("").astype(str).str.strip() if item_col is not None else df["brand"]
     df["item"] = df["item"].replace({"nan": ""})
     df.loc[df["item"] == "", "item"] = df["brand"]
 
@@ -80,7 +80,7 @@ def load_festive_df(raw: pd.DataFrame, ptype: str) -> pd.DataFrame:
         df["ach_po"] = ((df["inventory"] + df["open_po"]) / df["need"].replace(0, pd.NA) * 100).clip(upper=100).fillna(0.0)
 
     remark_col = col("remark", required=False)
-    df["remark"] = raw[remark_col].astype(str).replace({"nan": ""}) if remark_col else ""
+    df["remark"] = raw[remark_col].fillna("").astype(str).replace({"nan": ""}) if remark_col else ""
 
     df["ptype"] = ptype
     df["region"] = df["wh"].apply(region_of)
