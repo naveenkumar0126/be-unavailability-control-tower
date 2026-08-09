@@ -1,9 +1,16 @@
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import data, fillrate, google_auth, views
+# Loads app/backend/.env if present (local dev only - on Render, env vars are
+# set directly in its dashboard, no .env file involved). Safe to call even
+# when the file doesn't exist.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+from .routers import data, fillrate, google_auth, views  # noqa: E402
 
 app = FastAPI(title="BE Unavailability Dashboard API")
 
