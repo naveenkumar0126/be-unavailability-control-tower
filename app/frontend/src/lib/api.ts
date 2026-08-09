@@ -366,6 +366,13 @@ export type DeliveryRow = {
   po_lines: number;
 };
 
+export type PmOverview = {
+  focus_items: { count: number; at_risk_cpd: number } | null;
+  inbound: { avg_utilization: number; low_wh_count: number; wh_count: number } | null;
+  festive: { total_requirement: number; ptype_count: number; row_count: number } | null;
+  deliveries: { total_units: number; po_lines: number; row_count: number } | null;
+};
+
 function whParams(wh?: string[]): string {
   const p = new URLSearchParams();
   wh?.forEach((w) => p.append("wh", w));
@@ -408,4 +415,5 @@ export const pmApi = {
   },
   deliveriesToday: (wh?: string[]) =>
     get<{ date: string; rows: DeliveryRow[] }>(`/api/pm/deliveries-today?${whParams(wh)}`),
+  overview: (wh?: string[]) => get<PmOverview>(`/api/pm/overview?${whParams(wh)}`),
 };

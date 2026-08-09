@@ -152,3 +152,58 @@ async def deliveries_today(wh: Optional[list[str]] = Query(None), date: Optional
         d = d[d["wh"].isin(codes)]
     result = to_native(d.to_dict("records"))
     return {"date": target.strftime("%Y-%m-%d"), "rows": result}
+
+
+# ---------------- At-a-glance overview (4 summary numbers, one call) ----------------
+
+@router.get("/api/pm/overview")
+async def pm_overview(wh: Optional[list[str]] = Query(None)):
+    codes = None
+    if wh:
+        codes = {code_for_name(w) for w in wh}
+        codes.discard(None)
+
+    focus = None
+    if store.is_loaded:
+        d = store.df
+        if wh:
+            d = d[d["wh"].isin(wh)]
+        low = d[d["doi"] < 3]
+        focus = {"count": int(len(low)), "at_risk_cpd": float(low["cpd"].sum())}
+
+    inbound = None
+    if inbound_store.is_loaded:
+        g = IU.wh_summary(inbound_store.df, 7)
+        if codes:
+            g = g[g["wh"].isin(codes)]
+        inbound = {
+            "avg_utilization": float(g["avg_utilization"].mean()) if len(g) else 0.0,
+            "low_wh_count": int((g["avg_utilization"] < IU.LOW_UTILIZATION_THRESHOLD).sum()),
+            "wh_count": int(len(g)),
+        }
+
+    festive = None
+    if festive_store.is_loaded:
+        df = festive_store.all()
+        if wh:
+            df = df[df["wh"].isin(wh)]
+        df = df[df["requirement"] > 0]
+        festive = {
+            "total_requirement": float(df["requirement"].sum()),
+            "ptype_count": int(df["ptype"].nunique()),
+            "row_count": int(len(df)),
+        }
+
+    deliveries = None
+    if fill_store.is_loaded:
+        target = pd.Timestamp.now().normalize()
+        d = FR.deliveries_on(fill_store.df, target)
+        if codes:
+            d = d[d["wh"].isin(codes)]
+        deliveries = {
+            "total_units": float(d["ordered"].sum()),
+            "po_lines": int(d["po_lines"].sum()) if len(d) else 0,
+            "row_count": int(len(d)),
+        }
+
+    return to_native({"focus_items": focus, "inbound": inbound, "festive": festive, "deliveries": deliveries})

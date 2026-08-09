@@ -11,8 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from .routers import data, fillrate, google_auth, purchase_manager, views  # noqa: E402
+from .seed import load_seed_data  # noqa: E402
 
 app = FastAPI(title="BE Unavailability Dashboard API")
+load_seed_data()
 
 DEFAULT_ORIGINS = [
     "http://localhost:5173",

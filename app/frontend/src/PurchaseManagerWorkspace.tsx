@@ -6,8 +6,10 @@ import { InboundUtilization } from "./views/pm/InboundUtilization";
 import { FestiveRequirements } from "./views/pm/FestiveRequirements";
 import { FocusItems } from "./views/pm/FocusItems";
 import { DeliveriesToday } from "./views/pm/DeliveriesToday";
+import { Overview } from "./views/pm/Overview";
 
 const TABS = [
+  { key: "overview", label: "⚡ Overview" },
   { key: "deliveries", label: "🚛 Today's Deliveries" },
   { key: "focus", label: "🎯 Focus Items" },
   { key: "inbound", label: "📥 Inbound Utilization" },
@@ -18,7 +20,7 @@ type TabKey = (typeof TABS)[number]["key"];
 
 export function PurchaseManagerWorkspace({ status }: { status: DataStatus }) {
   const [wh, setWh] = useState<string[]>([]);
-  const [tab, setTab] = useState<TabKey>("deliveries");
+  const [tab, setTab] = useState<TabKey>("overview");
 
   return (
     <div className="flex flex-col">
@@ -51,6 +53,7 @@ export function PurchaseManagerWorkspace({ status }: { status: DataStatus }) {
           ))}
         </div>
 
+        {tab === "overview" && <Overview wh={wh} onNavigate={setTab} />}
         {tab === "deliveries" && <DeliveriesToday wh={wh} />}
         {tab === "focus" && <FocusItems wh={wh} />}
         {tab === "inbound" && <InboundUtilization wh={wh} />}
