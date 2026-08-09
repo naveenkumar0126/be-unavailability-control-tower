@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from .. import appsscript, sheets
 from ..formulas import DOI_DEFAULT_THRESHOLD, ColumnNotFoundError
+from ..pushutil import read_push_dataframe
 from ..store import get_raw_cache, set_raw_cache, store
 
 router = APIRouter(prefix="/api/data", tags=["data"])
@@ -179,7 +180,7 @@ async def push(request: Request):
     Google. Exists because Workspace admin policy can block every inbound
     route (service account sharing, OAuth, and even Apps Script's own web
     app when called anonymously) without touching outbound calls a script
-    makes on the signed-in user's own authority - see PUSH_SYNC.md.
+    makes on the signed-in user's own authority.
     """
     expected = os.environ.get("APPSSCRIPT_PUSH_TOKEN")
     if not expected:
@@ -188,19 +189,16 @@ async def push(request: Request):
     if token != expected:
         raise HTTPException(401, "Invalid push token.")
 
-    body = await request.json()
-    if isinstance(body, dict):
-        rows = body.get("rows")
-        doi_threshold = float(body.get("doi_threshold") or DOI_DEFAULT_THRESHOLD)
-        source = body.get("source", "Apps Script push")
-    else:
-        rows = body
-        doi_threshold = DOI_DEFAULT_THRESHOLD
-        source = "Apps Script push"
-    if not rows:
+    try:
+        raw, meta = await read_push_dataframe(request)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Could not parse push payload: {e}")
+    if raw.empty:
         raise HTTPException(400, "No rows in push payload.")
 
-    raw = pd.DataFrame(rows)
+    doi_threshold = float(meta.get("doi_threshold") or DOI_DEFAULT_THRESHOLD)
+    source = meta.get("source", "Apps Script push")
+
     set_raw_cache(raw)
     try:
         store.load(raw, source, doi_threshold=doi_threshold)

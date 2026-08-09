@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 
 from .. import appsscript, fillrate as F
 from .. import sheets
+from ..pushutil import read_push_dataframe
 from ..util import to_native
 
 router = APIRouter(prefix="/api/fillrate", tags=["fillrate"])
@@ -114,14 +115,13 @@ async def push(request: Request):
     if token != expected:
         raise HTTPException(401, "Invalid push token.")
 
-    body = await request.json()
-    rows = body.get("rows") if isinstance(body, dict) else body
-    source = body.get("source", "Apps Script push") if isinstance(body, dict) else "Apps Script push"
-    if not rows:
-        raise HTTPException(400, "No rows in push payload.")
-    raw = pd.DataFrame(rows)
+    try:
+        raw, meta = await read_push_dataframe(request)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Could not parse push payload: {e}")
     if raw.empty:
-        raise HTTPException(400, "Push payload came back empty.")
+        raise HTTPException(400, "No rows in push payload.")
+    source = meta.get("source", "Apps Script push")
     return _load_raw(raw, source)
 
 
