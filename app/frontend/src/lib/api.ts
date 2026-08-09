@@ -129,6 +129,14 @@ export type DetailRow = {
   unavail_cpd: number;
 };
 
+// In local dev this is empty, so requests go through Vite's /api proxy to
+// localhost:8000. In production (frontend and backend deployed as separate
+// services, e.g. on Render) VITE_API_BASE is set at build time to the
+// backend's own host, since a relative /api path would otherwise hit the
+// static frontend's own origin instead of the backend.
+const RAW_BASE = import.meta.env.VITE_API_BASE as string | undefined;
+const API_BASE = RAW_BASE ? (RAW_BASE.startsWith("http") ? RAW_BASE : `https://${RAW_BASE}`) : "";
+
 function qs(filters: Filters, extra: Record<string, string | number | undefined> = {}): string {
   const p = new URLSearchParams();
   filters.region?.forEach((v) => p.append("region", v));
@@ -143,7 +151,7 @@ function qs(filters: Filters, extra: Record<string, string | number | undefined>
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+  const res = await fetch(API_BASE + path);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || `Request failed: ${res.status}`);
@@ -159,7 +167,7 @@ export const api = {
     fd.append("file", file);
     if (sheetName) fd.append("sheet_name", sheetName);
     fd.append("doi_threshold", String(doiThreshold));
-    const res = await fetch("/api/data/upload", { method: "POST", body: fd });
+    const res = await fetch(API_BASE + "/api/data/upload", { method: "POST", body: fd });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail || `Upload failed: ${res.status}`);
@@ -171,7 +179,7 @@ export const api = {
     const fd = new FormData();
     fd.append("sheet_name", sheetName);
     fd.append("doi_threshold", String(doiThreshold));
-    const res = await fetch("/api/data/select-sheet", { method: "POST", body: fd });
+    const res = await fetch(API_BASE + "/api/data/select-sheet", { method: "POST", body: fd });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail || `Sheet selection failed: ${res.status}`);
@@ -182,7 +190,7 @@ export const api = {
   setDoiThreshold: async (threshold: number): Promise<DataStatus> => {
     const fd = new FormData();
     fd.append("threshold", String(threshold));
-    const res = await fetch("/api/data/doi-threshold", { method: "POST", body: fd });
+    const res = await fetch(API_BASE + "/api/data/doi-threshold", { method: "POST", body: fd });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail || `Failed: ${res.status}`);
