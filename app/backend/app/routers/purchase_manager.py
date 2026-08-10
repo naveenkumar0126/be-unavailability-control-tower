@@ -115,12 +115,18 @@ async def festive_status():
 
 
 @router.get("/api/festive/requirements")
-async def festive_requirements(wh: Optional[list[str]] = Query(None), min_requirement: float = Query(1)):
+async def festive_requirements(
+    wh: Optional[list[str]] = Query(None),
+    ptype: Optional[str] = Query(None),
+    min_requirement: float = Query(1),
+):
     if not festive_store.is_loaded:
         raise HTTPException(400, "No festive data loaded yet.")
     df = festive_store.all()
     if wh:
         df = df[df["wh"].isin(wh)]
+    if ptype:
+        df = df[df["ptype"] == ptype]
     df = df[df["requirement"] >= min_requirement]
     df = df.sort_values("requirement", ascending=False)
     return to_native(df.to_dict("records"))

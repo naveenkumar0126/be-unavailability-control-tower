@@ -94,6 +94,9 @@ export type PanResponse = {
     pct_of_pan: number;
     unavail_pct_of_pan: number;
     unavail_pct_within_cut: number;
+    binary_avail_pct: number;
+    binary_n: number;
+    binary_ok_n: number;
   };
   fill_rate_available: boolean;
 };
@@ -145,6 +148,35 @@ export type WhItemDrill = {
   fill_L2: number | null;
   fill_rate_available: boolean;
   rows: WhItemDrillRow[];
+};
+
+export type BrandWhDrillItem = {
+  item: string;
+  cpd: number;
+  inventory: number;
+  doi: number;
+  open_po: number;
+  unavail_cpd: number;
+  status: "OK" | "LOW" | "OUT";
+  fill_L1: number | null;
+  fill_L2: number | null;
+};
+export type BrandWhDrill = {
+  wh: string;
+  brand: string;
+  region: string;
+  sku_count: number;
+  total_cpd: number;
+  unavail_cpd: number;
+  unavail_pct: number;
+  avail_wtd: number;
+  inventory: number;
+  open_po: number;
+  doi_blended: number;
+  fill_L1: number | null;
+  fill_L2: number | null;
+  fill_rate_available: boolean;
+  items: BrandWhDrillItem[];
 };
 
 export type DataStatus = {
@@ -250,6 +282,8 @@ export const api = {
     get<WhItemResponse>(`/api/views/wh-item?${qs(f, { drill_brand: drillBrand, top_n: topN })}`),
   whItemDrill: (wh: string, item: string) =>
     get<WhItemDrill>(`/api/views/wh-item-drill?${new URLSearchParams({ wh, item }).toString()}`),
+  whBrandDrill: (wh: string, brand: string) =>
+    get<BrandWhDrill>(`/api/views/wh-brand-drill?${new URLSearchParams({ wh, brand }).toString()}`),
   detail: (f: Filters, limit = 5000) => get<DetailRow[]>(`/api/views/detail?${qs(f, { limit })}`),
 };
 
@@ -421,8 +455,9 @@ export const pmApi = {
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `Upload failed: ${res.status}`);
     return res.json();
   },
-  festiveRequirements: (wh?: string[]) => {
+  festiveRequirements: (wh?: string[], ptype?: string) => {
     const p = new URLSearchParams(whParams(wh));
+    if (ptype) p.append("ptype", ptype);
     return get<FestiveRow[]>(`/api/festive/requirements?${p.toString()}`);
   },
 

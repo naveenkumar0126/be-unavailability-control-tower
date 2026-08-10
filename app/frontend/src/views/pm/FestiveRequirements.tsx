@@ -53,6 +53,7 @@ function UploadRow({ onLoaded }: { onLoaded: () => void }) {
 export function FestiveRequirements({ wh }: { wh: string[] }) {
   const [status, setStatus] = useState<FestiveStatus | null>(null);
   const [rows, setRows] = useState<FestiveRow[] | null>(null);
+  const [ptype, setPtype] = useState<string>("");
 
   function refreshStatus() {
     pmApi.festiveStatus().then(setStatus).catch(() => setStatus({ loaded: false, ptypes: [] }));
@@ -64,8 +65,8 @@ export function FestiveRequirements({ wh }: { wh: string[] }) {
 
   useEffect(() => {
     if (!status?.loaded) return;
-    pmApi.festiveRequirements(wh).then(setRows).catch(() => setRows([]));
-  }, [status?.loaded, JSON.stringify(wh)]);
+    pmApi.festiveRequirements(wh, ptype || undefined).then(setRows).catch(() => setRows([]));
+  }, [status?.loaded, JSON.stringify(wh), ptype]);
 
   const columns: Column<FestiveRow>[] = [
     { key: "ptype", label: "Product Type", left: true },
@@ -89,10 +90,32 @@ export function FestiveRequirements({ wh }: { wh: string[] }) {
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11.5px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+          Product type:
+        </span>
+        <button
+          onClick={() => setPtype("")}
+          className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold"
+          style={{
+            background: ptype === "" ? "var(--series-1)" : "var(--surface-2)",
+            color: ptype === "" ? "#fff" : "var(--text-secondary)",
+          }}
+        >
+          All
+        </button>
         {status?.ptypes.map((p) => (
-          <span key={p.ptype} className="rounded-full border px-2.5 py-1 text-[10.5px]" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+          <button
+            key={p.ptype}
+            onClick={() => setPtype(p.ptype)}
+            className="rounded-full border px-2.5 py-1 text-[10.5px] font-semibold"
+            style={{
+              borderColor: ptype === p.ptype ? "var(--series-1)" : "var(--border)",
+              background: ptype === p.ptype ? "var(--series-1)" : "var(--surface-2)",
+              color: ptype === p.ptype ? "#fff" : "var(--text-secondary)",
+            }}
+          >
             {p.ptype} · {fmtNum(p.rows)} rows
-          </span>
+          </button>
         ))}
         <UploadRow onLoaded={refreshStatus} />
       </div>

@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import { pmApi, type FocusItemRow } from "../../lib/api";
 import { DataTable, type Column } from "../../components/DataTable";
-import { severityColor } from "../../lib/format";
 import { SeverityPill } from "../../components/Pill";
 import { WhItemDrillPanel } from "../../components/WhItemDrillPanel";
+
+// Days-of-cover severity - the fewer days left, the worse, independent of
+// whatever DOI-below filter the user picked above.
+function doiColor(doi: number): string {
+  if (doi < 1) return "var(--status-critical)";
+  if (doi < 2) return "var(--status-serious)";
+  if (doi < 3) return "var(--status-warning)";
+  return "var(--status-good)";
+}
 
 export function FocusItems({ wh }: { wh: string[] }) {
   const [doiMax, setDoiMax] = useState(3);
@@ -21,7 +29,7 @@ export function FocusItems({ wh }: { wh: string[] }) {
     { key: "region", label: "Region", left: true },
     { key: "cpd", label: "CPD (demand)", bar: true, defaultSort: true },
     { key: "inventory", label: "Inventory" },
-    { key: "doi", label: "DOI", decimals: 1, render: (v: number) => <SeverityPill value={v < doiMax ? 100 : 0} color={severityColor(v < doiMax ? 100 : 0)} decimals={0} /> },
+    { key: "doi", label: "BE DOI", decimals: 1, render: (v: number) => <SeverityPill value={v} color={doiColor(v)} decimals={1} suffix="d" /> },
     { key: "open_po", label: "Open PO" },
   ];
 

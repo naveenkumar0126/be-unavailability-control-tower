@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from .. import fillrate as FR
 from .. import fillrate_join as FJ
 from .. import formulas as F
+from ..regions import region_of
 from ..store import store
 from ..warehouse_map import code_for_name
 from ..util import to_native
@@ -72,6 +73,17 @@ async def pan_india(
     total_cpd = float(full["cpd"].sum())
     cut_cpd = sum(r["cpd"] for r in cut)
     cut_un = sum(r["unavail_cpd"] for r in cut)
+
+    # Binary/"normal" availability for the cut: every SKU x WH row counts as
+    # one unit regardless of its demand, unlike the CPD-weighted figures
+    # above - so a high-CPD OOS row and a low-CPD one move this equally.
+    key_col = "brand" if mode == "brand" else "item"
+    cut_keys = {r["key"] for r in cut}
+    cut_df = filtered[filtered[key_col].isin(cut_keys)]
+    binary_n = len(cut_df)
+    binary_ok_n = int((~cut_df["is_unavail"]).sum()) if binary_n else 0
+    binary_avail_pct = (binary_ok_n / binary_n * 100) if binary_n else 0.0
+
     summary = {
         "count": len(cut),
         "total_count": len(rows),
@@ -80,6 +92,9 @@ async def pan_india(
         "pct_of_pan": (cut_cpd / total_cpd * 100) if total_cpd else 0.0,
         "unavail_pct_of_pan": (cut_un / total_cpd * 100) if total_cpd else 0.0,
         "unavail_pct_within_cut": (cut_un / cut_cpd * 100) if cut_cpd else 0.0,
+        "binary_avail_pct": binary_avail_pct,
+        "binary_n": binary_n,
+        "binary_ok_n": binary_ok_n,
     }
 
     fill_available = FJ.fill_rate_available()
@@ -196,6 +211,74 @@ async def wh_item_drill(wh: str = Query(...), item: str = Query(...)):
                     if fr:
                         row["fill_L1"] = fr["fill_L1"]
                         row["fill_L2"] = fr["fill_L2"]
+
+    return to_native(result)
+
+
+@router.get("/wh-brand-drill")
+async def wh_brand_drill(wh: str = Query(...), brand: str = Query(...)):
+    if not store.is_loaded:
+        raise HTTPException(400, "No data loaded yet.")
+    df = store.df
+    here = df[(df["wh"] == wh) & (df["brand"] == brand)]
+    if here.empty:
+        raise HTTPException(404, "That brand isn't stocked at that warehouse.")
+
+    total_cpd = float(here["cpd"].sum())
+    unavail_cpd = float(here["unavail_cpd"].sum())
+    inventory = float(here["inventory"].sum())
+    open_po = float(here["open_po"].sum())
+    unavail_pct = (unavail_cpd / total_cpd * 100) if total_cpd else 0.0
+
+    items = []
+    for _, xr in here.sort_values("cpd", ascending=False).iterrows():
+        items.append({
+            "item": xr["item"],
+            "cpd": float(xr["cpd"]),
+            "inventory": float(xr["inventory"]),
+            "doi": float(xr["doi"]),
+            "open_po": float(xr["open_po"]),
+            "unavail_cpd": float(xr["unavail_cpd"]),
+            "status": "OUT" if (xr["is_unavail"] and xr["inventory"] <= 0) else ("LOW" if xr["is_unavail"] else "OK"),
+            "fill_L1": None,
+            "fill_L2": None,
+        })
+
+    result = {
+        "wh": wh,
+        "brand": brand,
+        "region": here["region"].iloc[0] if "region" in here.columns else region_of(wh),
+        "sku_count": int(here["item"].nunique()),
+        "total_cpd": total_cpd,
+        "unavail_cpd": unavail_cpd,
+        "unavail_pct": unavail_pct,
+        "avail_wtd": 100 - unavail_pct,
+        "inventory": inventory,
+        "open_po": open_po,
+        "doi_blended": (inventory / total_cpd) if total_cpd else 0.0,
+        "fill_L1": None,
+        "fill_L2": None,
+        "fill_rate_available": FJ.fill_rate_available(),
+        "items": items,
+    }
+
+    if FJ.fill_rate_available():
+        brand_lookup = FJ.brand_fill_lookup()
+        fr = brand_lookup.get(brand)
+        if fr:
+            result["fill_L1"] = fr["fill_L1"]
+            result["fill_L2"] = fr["fill_L2"]
+        wh_code = code_for_name(wh)
+        item_lookup = FJ.wh_item_fill_lookup()
+        if wh_code:
+            for row in items:
+                item_id = FJ.item_id_for_name(row["item"])
+                if not item_id:
+                    continue
+                frr = item_lookup.get((wh_code, item_id))
+                if frr:
+                    row["fill_L1"] = frr["fill_L1"]
+                    row["fill_L2"] = frr["fill_L2"]
 
     return to_native(result)
 

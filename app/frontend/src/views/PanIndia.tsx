@@ -106,6 +106,11 @@ export function PanIndia({ filters, dataVersion }: { filters: Filters; dataVersi
             [fmtPct(data.summary.unavail_pct_of_pan, 2), "Unavail % of PAN India"],
             [fmtPct(data.summary.unavail_pct_within_cut), "Unavail within cut"],
             [fmtPct(100 - data.summary.unavail_pct_within_cut), "Availability · weighted"],
+            [
+              fmtPct(data.summary.binary_avail_pct),
+              "Availability · binary",
+              `${fmtNum(data.summary.binary_ok_n)} of ${fmtNum(data.summary.binary_n)} SKU×WH rows OK`,
+            ],
           ].map(([v, l, s], i) => (
             <div key={i} className="card px-3.5 py-2.5">
               <div className="text-[19px] font-bold" style={{ color: "var(--text-primary)" }}>
