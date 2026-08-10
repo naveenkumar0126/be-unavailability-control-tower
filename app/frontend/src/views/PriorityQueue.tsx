@@ -11,19 +11,24 @@ export function PriorityQueue({ filters, dataVersion }: { filters: Filters; data
   const { isDark } = useTheme();
   const c = palette(isDark);
   const [rows, setRows] = useState<PriorityRow[] | null>(null);
+  const [totalUnavailCpd, setTotalUnavailCpd] = useState<number | null>(null);
 
   useEffect(() => {
     api.priorityQueue(filters, 15).then(setRows).catch(() => setRows([]));
+    api.kpis(filters).then((k) => setTotalUnavailCpd(k.unavail_cpd)).catch(() => setTotalUnavailCpd(null));
   }, [JSON.stringify(filters), dataVersion]);
 
   if (!rows) return <div style={{ color: "var(--text-muted)" }}>Loading…</div>;
 
+  // loss_share_pct comes from the backend already computed against the true
+  // network-wide total unavailable CPD (before slicing to these top 15) -
+  // reuse it here rather than re-deriving a share against just this
+  // subset's own sum, which would be circular (always ~100%).
   let run = 0;
-  const totalLoss = rows.reduce((s, r) => s + r.unavail_cpd, 0) || 1;
+  const topLoss = rows.reduce((s, r) => s + r.unavail_cpd, 0);
   const pareto = rows.slice(0, 15).map((r) => {
-    const share = (r.unavail_cpd / totalLoss) * 100;
-    run += share;
-    return { label: `${shortWh(r.wh)} · ${r.brand}`, share, cum: run };
+    run += r.loss_share_pct;
+    return { label: `${shortWh(r.wh)} · ${r.brand}`, share: r.loss_share_pct, cum: run };
   });
 
   const columns: Column<PriorityRow>[] = [
@@ -43,8 +48,9 @@ export function PriorityQueue({ filters, dataVersion }: { filters: Filters; data
         style={{ borderColor: "var(--series-1)", background: "var(--surface-1)", color: "var(--text-secondary)" }}
       >
         Top warehouse × brand cells ranked by absolute demand lost (CPD). These 15 rows account for{" "}
-        <b style={{ color: "var(--text-primary)" }}>{pareto.at(-1)?.cum.toFixed(0)}%</b> of the total unavailable
-        CPD in the current selection ({fmtNum(totalLoss)} CPD).
+        <b style={{ color: "var(--text-primary)" }}>{pareto.at(-1)?.cum.toFixed(1)}%</b> of the total unavailable
+        CPD across the whole network in the current selection ({fmtNum(topLoss)} of{" "}
+        {totalUnavailCpd == null ? "…" : fmtNum(totalUnavailCpd)} CPD).
       </div>
 
       <DataTable columns={columns} rows={rows} rowKey={(r) => r.wh + "|" + r.brand} />
