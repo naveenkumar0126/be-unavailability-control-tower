@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import io
+import os
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from .. import tags as T
+from ..pushutil import read_push_dataframe
 from ..tags_store import tags_store
 from ..util import to_native
 
@@ -39,6 +41,48 @@ async def tags_upload(file: UploadFile = File(...)):
         "rows": len(combined),
         "skipped_sheets": skipped,
     }
+
+
+@router.post("/api/tags/push")
+async def tags_push(request: Request):
+    """
+    Apps Script push target for the TAG & Reason sheet - the same outbound-
+    push pattern used for the main dataset and fill rate (see
+    appsscript-push-template.gs), except this sheet has one tab per day
+    rather than one tab total, so the script calls this once per tab and
+    each call carries that tab's own name so we can parse its date the same
+    way a direct .xlsx upload does. A day already loaded gets replaced, not
+    duplicated, so re-running the sync (e.g. a daily trigger) is safe.
+    """
+    expected = os.environ.get("APPSSCRIPT_PUSH_TOKEN")
+    if not expected:
+        raise HTTPException(400, "Push endpoint not configured (APPSSCRIPT_PUSH_TOKEN not set on the backend).")
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if token != expected:
+        raise HTTPException(401, "Invalid push token.")
+
+    try:
+        raw, meta = await read_push_dataframe(request)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Could not parse push payload: {e}")
+    if raw.empty:
+        raise HTTPException(400, "No rows in push payload.")
+
+    sheet_name = meta.get("sheet_name") or meta.get("source") or "sheet"
+    week = T.parse_week_from_sheet_name(sheet_name)
+    if week is None:
+        raise HTTPException(
+            422,
+            f"Could not find a date in sheet name '{sheet_name}' - expected something like '6th_july' or '3rd aug'.",
+        )
+
+    try:
+        wdf = T.load_tags_sheet(raw, week, sheet_name)
+    except KeyError as e:
+        raise HTTPException(422, str(e))
+
+    tags_store.upsert_week(pd.Timestamp(week), wdf)
+    return {"loaded": True, "sheet_name": sheet_name, "week": week.isoformat(), "rows": len(wdf)}
 
 
 @router.get("/api/tags/status")
