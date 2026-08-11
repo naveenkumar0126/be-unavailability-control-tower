@@ -29,7 +29,11 @@ export function ByDimension({ dim }: { dim: "brand" | "region" | "wh" }) {
 
   const columns: Column<FestiveDimRow>[] = [
     { key: cfg.key, label: cfg.label, left: true, render: dim === "wh" ? (v: string) => shortWh(v) : undefined },
-    { key: "row_count", label: "Lines" },
+    {
+      key: "at_risk_count",
+      label: "At-Risk Lines",
+      render: (v: number) => <span style={{ color: v > 0 ? "var(--status-critical)" : "var(--text-secondary)", fontWeight: v > 0 ? 700 : 400 }}>{v}</span>,
+    },
     { key: "requirement", label: "Still Required", bar: true, defaultSort: true },
     { key: "ach_be_pct", label: "Achievement · BE", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
     { key: "ach_po_pct", label: "Achievement · +PO", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },

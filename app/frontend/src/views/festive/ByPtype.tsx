@@ -30,7 +30,11 @@ export function ByPtype() {
     { key: "ptype", label: "Product Type", left: true },
     { key: "wh_count", label: "Warehouses" },
     { key: "brand_count", label: "Brands" },
-    { key: "row_count", label: "Lines" },
+    {
+      key: "at_risk_count",
+      label: "At-Risk Lines",
+      render: (v: number) => <span style={{ color: v > 0 ? "var(--status-critical)" : "var(--text-secondary)", fontWeight: v > 0 ? 700 : 400 }}>{v}</span>,
+    },
     { key: "requirement", label: "Still Required", bar: true, defaultSort: true },
     { key: "ach_be_pct", label: "Achievement · BE", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
     { key: "ach_po_pct", label: "Achievement · +PO", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
@@ -117,7 +121,10 @@ export function ByPtype() {
               {fmtNum(r.requirement)} units still needed across {r.wh_count} warehouses
             </div>
             <div className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-              {r.brand_count} brand{r.brand_count === 1 ? "" : "s"} · {r.row_count} lines
+              {r.brand_count} brand{r.brand_count === 1 ? "" : "s"} ·{" "}
+              <span style={{ color: r.at_risk_count > 0 ? "var(--status-critical)" : "var(--text-secondary)" }}>
+                {r.at_risk_count} at-risk
+              </span>
             </div>
           </div>
         ))}

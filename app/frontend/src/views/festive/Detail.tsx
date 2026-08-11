@@ -52,7 +52,13 @@ export function Detail() {
     { key: "wh", label: "Warehouse", left: true, render: (v) => shortWh(v) },
     { key: "region", label: "Region", left: true },
     { key: "brand", label: "Brand", left: true },
-    { key: "item", label: "Item", left: true },
+    {
+      key: "item",
+      label: "Item",
+      left: true,
+      render: (v: string, r) =>
+        v === r.brand ? <span style={{ color: "var(--text-muted)" }}>— brand-level, no SKU split</span> : v,
+    },
     { key: "inventory", label: "Inventory" },
     { key: "open_po", label: "Open PO" },
     { key: "need", label: "Need (Proj+BAU)", bar: true },

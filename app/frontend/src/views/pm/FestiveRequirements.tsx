@@ -72,7 +72,13 @@ export function FestiveRequirements({ wh }: { wh: string[] }) {
     { key: "ptype", label: "Product Type", left: true },
     { key: "wh", label: "Warehouse", left: true },
     { key: "brand", label: "Brand", left: true },
-    { key: "item", label: "Item", left: true },
+    {
+      key: "item",
+      label: "Item",
+      left: true,
+      render: (v: string, r) =>
+        v === r.brand ? <span style={{ color: "var(--text-muted)" }}>— brand-level, no SKU split</span> : v,
+    },
     { key: "inventory", label: "Inventory" },
     { key: "open_po", label: "Open PO" },
     { key: "need", label: "Need (Proj+BAU)", bar: true },

@@ -403,6 +403,7 @@ export type FestiveDimRow = {
   row_count: number;
   brand_count: number;
   wh_count: number;
+  at_risk_count: number;
   ach_be_pct: number;
   ach_po_pct: number;
 };
