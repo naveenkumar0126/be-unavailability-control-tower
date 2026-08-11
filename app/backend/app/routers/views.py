@@ -99,12 +99,19 @@ async def pan_india(
 
     fill_available = FJ.fill_rate_available()
     if fill_available:
-        lookup = FJ.brand_fill_lookup() if mode == "brand" else FJ.sku_fill_lookup()
-        for r in cut:
-            key = r["key"] if mode == "brand" else FR.normalize_item_name(r["key"])
-            fr = lookup.get(key)
-            if fr:
-                r.update(fr)
+        if mode == "brand":
+            lookup = FJ.brand_fill_lookup()
+            for r in cut:
+                fr = lookup.get(r["key"])
+                if fr:
+                    r.update(fr)
+        else:
+            id_lookup = FJ.sku_fill_lookup_by_id()
+            name_lookup = FJ.sku_fill_lookup()
+            for r in cut:
+                fr = id_lookup.get(r.get("item_id") or "") or name_lookup.get(FR.normalize_item_name(r["key"]))
+                if fr:
+                    r.update(fr)
 
     return to_native({"rows": cut, "summary": summary, "fill_rate_available": fill_available})
 
@@ -127,8 +134,9 @@ async def wh_item(
     fill_available = FJ.fill_rate_available()
     if fill_available:
         fill_lookup = FJ.wh_item_fill_lookup()
+        known_ids = FJ.known_fill_item_ids()
         for item_row in grid["items"]:
-            item_id = FJ.item_id_for_name(item_row["item"])
+            item_id = FJ.resolve_item_id(item_row.get("item_id", ""), item_row["item"], known_ids)
             if not item_id:
                 continue
             for wh_name, cell in item_row["cells"].items():
@@ -195,7 +203,8 @@ async def wh_item_drill(wh: str = Query(...), item: str = Query(...)):
     }
 
     if FJ.fill_rate_available():
-        item_id = FJ.item_id_for_name(item)
+        row_item_id = across["item_id"].iloc[0] if "item_id" in across.columns else ""
+        item_id = FJ.resolve_item_id(row_item_id, item)
         if item_id:
             fill_lookup = FJ.wh_item_fill_lookup()
             here_code = code_for_name(wh)
@@ -234,6 +243,7 @@ async def wh_brand_drill(wh: str = Query(...), brand: str = Query(...)):
     for _, xr in here.sort_values("cpd", ascending=False).iterrows():
         items.append({
             "item": xr["item"],
+            "item_id": xr["item_id"] if "item_id" in xr else "",
             "cpd": float(xr["cpd"]),
             "inventory": float(xr["inventory"]),
             "doi": float(xr["doi"]),
@@ -271,8 +281,9 @@ async def wh_brand_drill(wh: str = Query(...), brand: str = Query(...)):
         wh_code = code_for_name(wh)
         item_lookup = FJ.wh_item_fill_lookup()
         if wh_code:
+            known_ids = FJ.known_fill_item_ids()
             for row in items:
-                item_id = FJ.item_id_for_name(row["item"])
+                item_id = FJ.resolve_item_id(row.get("item_id", ""), row["item"], known_ids)
                 if not item_id:
                     continue
                 frr = item_lookup.get((wh_code, item_id))

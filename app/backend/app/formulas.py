@@ -30,6 +30,7 @@ COLUMN_CANDIDATES = {
     "wh": ["warehouse_name", "facility_name", "warehouse", "facility"],
     "brand": ["brand_name", "brand"],
     "item": ["item_name", "item", "sku_name", "skusname"],
+    "item_id": ["item_id", "sku_id", "sku_code"],
     "cpd": ["avg_cpd", "warehouse_cpd", "cpd"],
     "inventory": ["wh_current_inventory", "be_current_inventory", "current_inventory", "inventory"],
     "doi": ["current_doi", "backend_doi", "doi"],
@@ -124,6 +125,19 @@ def load_dataframe(raw: pd.DataFrame, doi_threshold: float = DOI_DEFAULT_THRESHO
 
     item_col = col_for("item", False)
     out["item"] = raw[item_col].astype(str).str.strip() if item_col else (out["wh"] + " | " + out["brand"])
+
+    # A real shared item_id (when the source has one, e.g. BE_Superset_Daily)
+    # is a far more reliable fill-rate join key than matching on item NAME -
+    # the two systems format names very differently for the same SKU, but
+    # item_id is the same number in both. Cleaned to a plain integer string
+    # ("10082304", not "10082304.0") so it compares equal to the fill-rate
+    # side's own item_id string.
+    item_id_col = col_for("item_id", False)
+    if item_id_col:
+        out["item_id"] = pd.to_numeric(raw[item_id_col], errors="coerce").astype("Int64").astype(str)
+        out["item_id"] = out["item_id"].replace({"<NA>": ""})
+    else:
+        out["item_id"] = ""
 
     out["cpd"] = pd.to_numeric(raw[col_for("cpd", True)], errors="coerce").fillna(0.0)
 
@@ -298,6 +312,7 @@ def pan_india(full_df: pd.DataFrame, filtered_df: pd.DataFrame, mode: str = "bra
         rows.append({
             "key": key,
             "brand": sub["brand"].iloc[0],
+            "item_id": sub["item_id"].iloc[0] if "item_id" in sub.columns else "",
             "category": sub["category"].iloc[0] if "category" in sub.columns else None,
             "cpd": cpd,
             "weight_pct": (cpd / TOT * 100) if TOT else 0.0,
@@ -352,6 +367,7 @@ def wh_item_grid(df: pd.DataFrame, brand: Optional[str] = None, top_n: int = 30)
 
     sub = d[d["item"].isin(items)]
     item_brand = sub.groupby("item")["brand"].first().to_dict()
+    item_id_map = sub[sub["item_id"] != ""].groupby("item")["item_id"].first().to_dict()
     cell_map = {(r["item"], r["wh"]): r for r in sub.to_dict("records")}
 
     rows = []
@@ -369,7 +385,7 @@ def wh_item_grid(df: pd.DataFrame, brand: Optional[str] = None, top_n: int = 30)
                 "status": "OUT" if (p["is_unavail"] and p["inventory"] <= 0) else ("LOW" if p["is_unavail"] else "OK"),
             }
         rows.append({
-            "item": it, "brand": item_brand.get(it, ""),
+            "item": it, "brand": item_brand.get(it, ""), "item_id": item_id_map.get(it, ""),
             "pan_cpd": icpd, "weight_pct": (icpd / total_all * 100) if total_all else 0.0,
             "avail_wtd": iav, "cells": cells,
         })
