@@ -38,6 +38,24 @@ COLUMN_CANDIDATES = {
     "region": ["region"],
     "sales": ["actual_sales", "sales"],
     "open_po": ["open_po_qty", "openpo"],
+    "assortment_status": ["assortment_status", "assortmentstatus", "sku_status", "skustatus"],
+}
+
+ACTIVE_ASSORTMENT_VALUES = {"active"}
+
+# Feeder/test/decommissioned warehouses that show up in the source data but
+# aren't real fulfillment centers to report availability on - excluded at
+# ingestion so they never reach any calculation, view, or filter dropdown.
+EXCLUDED_WAREHOUSES = {
+    "cpc - chennai2 (hp)",
+    "cpc - tcigurgaon1 (hp)",
+    "farukhnagar - sr feeder warehouse",
+    "ludhiana - feeder warehouse",
+    "not in use",
+    "super store dasna 2 - warehouse",
+    "super store hyderabad h2 - warehouse",
+    "super store kolkata k3 holisol - warehouse",
+    "bengaluru b3 - feeder warehouse",
 }
 
 REQUIRED_FIELDS = ["wh", "brand", "cpd"]
@@ -82,9 +100,27 @@ def load_dataframe(raw: pd.DataFrame, doi_threshold: float = DOI_DEFAULT_THRESHO
             raise ColumnNotFoundError(field, list(raw.columns))
         return found
 
+    # Source files can carry Discontinued/Inactive/Temp Inactive rows
+    # alongside Active ones (e.g. the BE_Superset_Daily export's
+    # assortment_status column) - those aren't real, currently-stocked
+    # assortment and including them drags every availability number down.
+    # The dashboard only ever reports on Active assortment, matching what
+    # the company's own numbers are scoped to - so drop everything else at
+    # ingestion, before any calculation sees it. No-op when the column
+    # isn't present in a given upload.
+    status_col = col_for("assortment_status", False)
+    if status_col:
+        is_active = raw[status_col].astype(str).str.strip().str.lower().isin(ACTIVE_ASSORTMENT_VALUES)
+        raw = raw[is_active].reset_index(drop=True)
+
     out = pd.DataFrame(index=raw.index)
     out["wh"] = raw[col_for("wh", True)].astype(str).str.strip()
     out["brand"] = raw[col_for("brand", True)].astype(str).str.strip()
+
+    not_excluded_wh = ~out["wh"].str.lower().isin(EXCLUDED_WAREHOUSES)
+    out = out[not_excluded_wh]
+    raw = raw[not_excluded_wh].reset_index(drop=True)
+    out = out.reset_index(drop=True)
 
     item_col = col_for("item", False)
     out["item"] = raw[item_col].astype(str).str.strip() if item_col else (out["wh"] + " | " + out["brand"])

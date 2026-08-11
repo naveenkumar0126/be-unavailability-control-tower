@@ -4,6 +4,7 @@ import { UploadPanel } from "./components/UploadPanel";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AvailabilityWorkspace } from "./AvailabilityWorkspace";
 import { PurchaseManagerWorkspace } from "./PurchaseManagerWorkspace";
+import { TagsWorkspace } from "./TagsWorkspace";
 import { api, type DataStatus } from "./lib/api";
 
 function ComingSoon({ label }: { label: string }) {
@@ -81,7 +82,7 @@ export default function App() {
                 <div className="text-[12px]">Upload the main Availability file above first — this workspace uses its warehouse list.</div>
               </div>
             ))}
-          {view === "tags" && <ComingSoon label="Tags & Reasons" />}
+          {view === "tags" && <TagsWorkspace />}
           {view === "festive" && <ComingSoon label="Festive" />}
         </main>
       </div>

@@ -471,3 +471,84 @@ export const pmApi = {
     get<{ date: string; rows: DeliveryRow[] }>(`/api/pm/deliveries-today?${whParams(wh)}`),
   overview: (wh?: string[]) => get<PmOverview>(`/api/pm/overview?${whParams(wh)}`),
 };
+
+// ---------------- Tags & Reasons ----------------
+
+export type TagsStatus = {
+  loaded: boolean;
+  weeks: { week: string; label: string; rows: number }[];
+  total_rows?: number;
+};
+
+export type TagsOverview = {
+  latest_week_label: string | null;
+  weeks_available: number;
+  total_rows: number;
+  coverage_pct: number;
+  prev_coverage_pct: number | null;
+  top_tag: string | null;
+  top_tag_count: number;
+  top_tag_prev_count: number | null;
+  good_pct: number;
+  prev_good_pct: number | null;
+  at_risk_cpd: number;
+};
+
+export type TagTrendRow = { week: string; week_label: string; tag: string; count: number; at_risk_cpd: number };
+export type TagCoverageRow = { week: string; week_label: string; total: number; tagged: number; coverage_pct: number };
+
+export type TagByDimRow = { tag: string; count: number; at_risk_cpd: number } & Record<string, any>;
+
+export type ChronicIssueRow = {
+  wh: string;
+  brand: string;
+  region: string;
+  weeks_affected: number;
+  tags: string;
+  latest_tag: string;
+  total_at_risk_cpd: number;
+  latest_remark: string;
+};
+
+export type TagDetailRow = {
+  week_label: string;
+  wh: string;
+  region: string;
+  brand: string;
+  tag: string;
+  remark: string;
+  category_remark: string;
+  cpd: number;
+  avail_wtd: number;
+  doi: number;
+  active_skus: number;
+  unavail_cpd: number;
+  skus_note: string;
+};
+
+export type TagsFacets = { warehouses: string[]; brands: string[]; tags: string[] };
+
+export const tagsApi = {
+  status: () => get<TagsStatus>("/api/tags/status"),
+  upload: async (file: File): Promise<any> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(API_BASE + "/api/tags/upload", { method: "POST", body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `Upload failed: ${res.status}`);
+    return res.json();
+  },
+  overview: () => get<TagsOverview>("/api/tags/overview"),
+  trend: () => get<{ trend: TagTrendRow[]; coverage: TagCoverageRow[] }>("/api/tags/trend"),
+  byBrand: (week?: string) => get<TagByDimRow[]>(`/api/tags/by-brand${week ? `?week=${encodeURIComponent(week)}` : ""}`),
+  byWarehouse: (week?: string) => get<TagByDimRow[]>(`/api/tags/by-warehouse${week ? `?week=${encodeURIComponent(week)}` : ""}`),
+  chronic: (minWeeks = 3) => get<ChronicIssueRow[]>(`/api/tags/chronic?min_weeks=${minWeeks}`),
+  detail: (params: { week?: string; tag?: string[]; wh?: string[]; brand?: string[] } = {}) => {
+    const p = new URLSearchParams();
+    if (params.week) p.append("week", params.week);
+    params.tag?.forEach((t) => p.append("tag", t));
+    params.wh?.forEach((w) => p.append("wh", w));
+    params.brand?.forEach((b) => p.append("brand", b));
+    return get<TagDetailRow[]>(`/api/tags/detail?${p.toString()}`);
+  },
+  facets: () => get<TagsFacets>("/api/tags/facets"),
+};

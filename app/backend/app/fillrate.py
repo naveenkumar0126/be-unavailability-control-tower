@@ -58,7 +58,7 @@ def normalize_item_name(name: str) -> str:
     remaining brand/flavor/size tokens are what's actually distinctive.
     """
     s = str(name).strip()
-    s = re.sub(r"^BH-", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"^BH[\s-]+", "", s, flags=re.IGNORECASE)
 
     # Parens with a digit inside usually carry real info (a "(6 Pieces)"
     # count) - keep the content, drop just the parens. Parens with no digit
@@ -69,6 +69,12 @@ def normalize_item_name(name: str) -> str:
 
     s = re.sub(r"\(([^)]*)\)", _paren, s)
     s = s.replace("'", "")
+
+    # One side writes "180g"/"500ml" glued together, the other "180 g"/"500
+    # ml" with a space - split the glued form so both tokenize to the same
+    # two tokens instead of one side producing a single "180g" token.
+    s = re.sub(r"(\d)([a-zA-Z])", r"\1 \2", s)
+
     tokens = [_UNIT_ALIASES.get(t, t) for t in _TOKEN_RE.findall(s.lower())]
     tokens = [t for t in tokens if t not in _STOPWORDS]
     return " ".join(sorted(tokens))
