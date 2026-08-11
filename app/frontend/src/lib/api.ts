@@ -398,6 +398,8 @@ export type FestiveDimRow = {
   brand?: string;
   region?: string;
   wh?: string;
+  inventory: number;
+  open_po: number;
   requirement: number;
   need: number;
   row_count: number;

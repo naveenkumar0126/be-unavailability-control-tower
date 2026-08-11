@@ -139,8 +139,10 @@ def _weighted_group(d: pd.DataFrame, group_col: str) -> pd.DataFrame:
     d["_wpo"] = d["_w"] * d["ach_po"]
     d["_at_risk"] = (d["requirement"] > 0) & (d["ach_po"] < AT_RISK_ACH_PO_THRESHOLD)
     g = d.groupby(group_col, dropna=False).agg(
-        requirement=("requirement", "sum"),
+        inventory=("inventory", "sum"),
+        open_po=("open_po", "sum"),
         need=("_w", "sum"),
+        requirement=("requirement", "sum"),
         row_count=("requirement", "size"),
         brand_count=("brand", "nunique"),
         wh_count=("wh", "nunique"),

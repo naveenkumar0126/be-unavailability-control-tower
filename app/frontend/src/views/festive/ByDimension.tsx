@@ -29,14 +29,11 @@ export function ByDimension({ dim }: { dim: "brand" | "region" | "wh" }) {
 
   const columns: Column<FestiveDimRow>[] = [
     { key: cfg.key, label: cfg.label, left: true, render: dim === "wh" ? (v: string) => shortWh(v) : undefined },
-    {
-      key: "at_risk_count",
-      label: "At-Risk Lines",
-      render: (v: number) => <span style={{ color: v > 0 ? "var(--status-critical)" : "var(--text-secondary)", fontWeight: v > 0 ? 700 : 400 }}>{v}</span>,
-    },
+    { key: "inventory", label: "Stocked Now", bar: true },
+    { key: "open_po", label: "Incoming (Open PO)", bar: true },
     { key: "requirement", label: "Still Required", bar: true, defaultSort: true },
-    { key: "ach_be_pct", label: "Achievement · BE", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
-    { key: "ach_po_pct", label: "Achievement · +PO", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
+    { key: "ach_be_pct", label: "% Covered · Stock", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
+    { key: "ach_po_pct", label: "% Covered · +PO", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
   ];
 
   return (
@@ -45,8 +42,10 @@ export function ByDimension({ dim }: { dim: "brand" | "region" | "wh" }) {
         className="rounded-lg border-l-4 px-4 py-3 text-[12px]"
         style={{ borderColor: "var(--series-1)", background: "var(--surface-1)", color: "var(--text-secondary)" }}
       >
-        {cfg.label}s ranked by outstanding requirement, with need-weighted achievement %. Filter to one product type,
-        or leave on "All" to see the combined festive picture.
+        {cfg.label}s ranked by outstanding requirement — how much is already <b style={{ color: "var(--status-good)" }}>stocked</b>,
+        how much is <b style={{ color: "var(--series-4)" }}>incoming on PO</b>, and how much is{" "}
+        <b style={{ color: "var(--status-critical)" }}>still required</b>. Filter to one product type, or leave on
+        "All" to see the combined festive picture.
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -79,7 +78,10 @@ export function ByDimension({ dim }: { dim: "brand" | "region" | "wh" }) {
       ) : (
         <>
           <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-            {rows.length} {cfg.label.toLowerCase()}{rows.length === 1 ? "" : "s"} · {fmtNum(rows.reduce((s, r) => s + r.requirement, 0))} units still required
+            {rows.length} {cfg.label.toLowerCase()}{rows.length === 1 ? "" : "s"} ·{" "}
+            <b style={{ color: "var(--status-good)" }}>{fmtNum(rows.reduce((s, r) => s + r.inventory, 0))}</b> stocked ·{" "}
+            <b style={{ color: "var(--series-4)" }}>{fmtNum(rows.reduce((s, r) => s + r.open_po, 0))}</b> incoming ·{" "}
+            <b style={{ color: "var(--status-critical)" }}>{fmtNum(rows.reduce((s, r) => s + r.requirement, 0))}</b> still required
           </div>
           <DataTable columns={columns} rows={rows} rowKey={(r) => String(r[cfg.key] ?? "")} />
         </>

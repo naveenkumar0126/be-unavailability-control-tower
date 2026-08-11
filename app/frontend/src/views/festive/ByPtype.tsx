@@ -30,14 +30,11 @@ export function ByPtype() {
     { key: "ptype", label: "Product Type", left: true },
     { key: "wh_count", label: "Warehouses" },
     { key: "brand_count", label: "Brands" },
-    {
-      key: "at_risk_count",
-      label: "At-Risk Lines",
-      render: (v: number) => <span style={{ color: v > 0 ? "var(--status-critical)" : "var(--text-secondary)", fontWeight: v > 0 ? 700 : 400 }}>{v}</span>,
-    },
+    { key: "inventory", label: "Stocked Now", bar: true },
+    { key: "open_po", label: "Incoming (Open PO)", bar: true },
     { key: "requirement", label: "Still Required", bar: true, defaultSort: true },
-    { key: "ach_be_pct", label: "Achievement · BE", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
-    { key: "ach_po_pct", label: "Achievement · +PO", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
+    { key: "ach_be_pct", label: "% Covered · Stock", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
+    { key: "ach_po_pct", label: "% Covered · +PO", render: (v: number) => <SeverityPill value={v} color={availColor(v)} decimals={0} /> },
   ];
 
   return (
@@ -46,9 +43,9 @@ export function ByPtype() {
         className="rounded-lg border-l-4 px-4 py-3 text-[12px]"
         style={{ borderColor: "var(--series-1)", background: "var(--surface-1)", color: "var(--text-secondary)" }}
       >
-        Every product type stocked for Sawan, side by side. Bars = units still required (left axis); lines =
-        need-weighted achievement % (right axis) — the ptype with the tallest bar and lowest lines needs attention
-        first.
+        Every product type stocked for Sawan, side by side. Bars = units still required (left axis); lines = %
+        of projected need already covered — by stock alone, or stock + incoming PO (right axis). The ptype with
+        the tallest bar and lowest lines needs attention first.
       </div>
 
       <div className="card p-3">
@@ -118,13 +115,11 @@ export function ByPtype() {
               {r.ptype}
             </div>
             <div className="text-[11px] mt-1" style={{ color: "var(--text-secondary)" }}>
-              {fmtNum(r.requirement)} units still needed across {r.wh_count} warehouses
+              <b style={{ color: "var(--status-good)" }}>{fmtNum(r.inventory)}</b> stocked now +{" "}
+              <b style={{ color: "var(--series-4)" }}>{fmtNum(r.open_po)}</b> incoming
             </div>
             <div className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-              {r.brand_count} brand{r.brand_count === 1 ? "" : "s"} ·{" "}
-              <span style={{ color: r.at_risk_count > 0 ? "var(--status-critical)" : "var(--text-secondary)" }}>
-                {r.at_risk_count} at-risk
-              </span>
+              <b style={{ color: "var(--status-critical)" }}>{fmtNum(r.requirement)}</b> still required across {r.wh_count} warehouses
             </div>
           </div>
         ))}
