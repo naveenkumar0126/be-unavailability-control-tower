@@ -1,13 +1,9 @@
 """
 Inbound capacity utilization (the "DOD Tracker") - daily, per warehouse:
-how much inbound qty was planned vs actually GRN'd.
+how much of the day's inbound dock capacity actually got used.
 
-Utilization here is deliberately GRN ÷ Planned, not GRN ÷ Capacity (the
-source file's own "IB Utilization" column is against capacity) - a
-warehouse that plans conservatively and hits its plan shouldn't look bad
-just because the plan was well under capacity. This is "did they receive
-what they said they'd receive," which is the number a purchase manager can
-actually act on.
+Utilization = GRN ÷ Inbound Cap, matching the source file's own "IB
+Utilization" column exactly (verified against real rows).
 """
 from __future__ import annotations
 
@@ -55,7 +51,7 @@ def load_inbound_df(raw: pd.DataFrame) -> pd.DataFrame:
 def last_n_days(df: pd.DataFrame, n: int = 7) -> pd.DataFrame:
     dates = sorted(df["date"].dropna().unique())[-n:]
     d = df[df["date"].isin(dates)].copy()
-    d["utilization_pct"] = np.where(d["planned"] > 0, d["grn"] / d["planned"] * 100, 0.0)
+    d["utilization_pct"] = np.where(d["cap"] > 0, d["grn"] / d["cap"] * 100, 0.0)
     d["is_low"] = d["utilization_pct"] < LOW_UTILIZATION_THRESHOLD
     return d.sort_values(["wh", "date"], ascending=[True, False])
 
@@ -67,6 +63,7 @@ def wh_summary(df: pd.DataFrame, n: int = 7) -> pd.DataFrame:
     g = d.groupby("wh").agg(
         zone=("zone", "first"),
         days=("date", "nunique"),
+        avg_cap=("cap", "mean"),
         avg_planned=("planned", "mean"),
         avg_grn=("grn", "mean"),
         avg_utilization=("utilization_pct", "mean"),

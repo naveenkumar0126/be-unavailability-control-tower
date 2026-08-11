@@ -12,6 +12,7 @@ to brand as the row key when there's no item_name.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from .regions import region_of
@@ -32,6 +33,8 @@ COLUMN_CANDIDATES = {
     "ach_po": ["achievemntbeopenpo", "achievementbeopenpo", "achievemntbe+openpo"],
     "remark": ["remarks", "remark"],
 }
+
+NON_WAREHOUSE_LABELS = {"grand total", "total", "subtotal", "sub total"}
 
 
 def load_festive_df(raw: pd.DataFrame, ptype: str) -> pd.DataFrame:
@@ -85,5 +88,78 @@ def load_festive_df(raw: pd.DataFrame, ptype: str) -> pd.DataFrame:
     df["ptype"] = ptype
     df["region"] = df["wh"].apply(region_of)
 
-    df = df[df["wh"].str.strip() != ""].reset_index(drop=True)
+    # Pivot-table exports sometimes bake a "Grand Total" row into the sheet
+    # itself, in the same column as real warehouse names - that's not a
+    # warehouse and would double-count into every aggregate if left in.
+    not_blank = df["wh"].str.strip() != ""
+    not_subtotal = ~df["wh"].str.strip().str.lower().isin(NON_WAREHOUSE_LABELS)
+    df = df[not_blank & not_subtotal].reset_index(drop=True)
     return df
+
+
+AT_RISK_ACH_PO_THRESHOLD = 50.0
+
+
+def overview(df: pd.DataFrame) -> dict:
+    """Headline stock-readiness numbers across every loaded ptype."""
+    if df.empty:
+        return {
+            "ptypes": [], "ptype_count": 0, "row_count": 0, "warehouse_count": 0, "brand_count": 0,
+            "total_requirement": 0.0, "total_need": 0.0, "ach_be_pct": 0.0, "ach_po_pct": 0.0,
+            "at_risk_count": 0, "at_risk_requirement": 0.0,
+        }
+    weight = df["need"].clip(lower=0)
+    w_sum = float(weight.sum())
+    ach_be = float((weight * df["ach_be"]).sum() / w_sum) if w_sum else 0.0
+    ach_po = float((weight * df["ach_po"]).sum() / w_sum) if w_sum else 0.0
+    at_risk = df[(df["requirement"] > 0) & (df["ach_po"] < AT_RISK_ACH_PO_THRESHOLD)]
+
+    return {
+        "ptypes": sorted(df["ptype"].unique().tolist()),
+        "ptype_count": int(df["ptype"].nunique()),
+        "row_count": int(len(df)),
+        "warehouse_count": int(df["wh"].nunique()),
+        "brand_count": int(df["brand"].nunique()),
+        "total_requirement": float(df["requirement"].sum()),
+        "total_need": w_sum,
+        "ach_be_pct": ach_be,
+        "ach_po_pct": ach_po,
+        "at_risk_count": int(len(at_risk)),
+        "at_risk_requirement": float(at_risk["requirement"].sum()),
+    }
+
+
+def _weighted_group(d: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    """Group by group_col, need-weighting the achievement percentages so a
+    warehouse with a huge outstanding need isn't diluted by a dozen
+    near-zero-need rows averaging equally alongside it."""
+    d = d.copy()
+    d["_w"] = d["need"].clip(lower=0)
+    d["_wbe"] = d["_w"] * d["ach_be"]
+    d["_wpo"] = d["_w"] * d["ach_po"]
+    g = d.groupby(group_col, dropna=False).agg(
+        requirement=("requirement", "sum"),
+        need=("_w", "sum"),
+        row_count=("requirement", "size"),
+        brand_count=("brand", "nunique"),
+        wh_count=("wh", "nunique"),
+        _wbe_sum=("_wbe", "sum"),
+        _wpo_sum=("_wpo", "sum"),
+    ).reset_index()
+    g["ach_be_pct"] = np.where(g["need"] > 0, g["_wbe_sum"] / g["need"], 0.0)
+    g["ach_po_pct"] = np.where(g["need"] > 0, g["_wpo_sum"] / g["need"], 0.0)
+    g = g.drop(columns=["_wbe_sum", "_wpo_sum"])
+    return g.sort_values("requirement", ascending=False)
+
+
+def by_ptype(df: pd.DataFrame) -> list[dict]:
+    if df.empty:
+        return []
+    return _weighted_group(df, "ptype").to_dict("records")
+
+
+def by_dimension(df: pd.DataFrame, dim: str, ptype: "str | None" = None) -> list[dict]:
+    d = df if not ptype else df[df["ptype"] == ptype]
+    if d.empty:
+        return []
+    return _weighted_group(d, dim).to_dict("records")

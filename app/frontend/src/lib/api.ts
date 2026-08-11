@@ -352,6 +352,7 @@ export type InboundSummaryRow = {
   wh: string;
   zone: string;
   days: number;
+  avg_cap: number;
   avg_planned: number;
   avg_grn: number;
   avg_utilization: number;
@@ -376,6 +377,34 @@ export type FestiveRow = {
   remark: string;
   ptype: string;
   region: string;
+};
+
+export type FestiveOverview = {
+  ptypes: string[];
+  ptype_count: number;
+  row_count: number;
+  warehouse_count: number;
+  brand_count: number;
+  total_requirement: number;
+  total_need: number;
+  ach_be_pct: number;
+  ach_po_pct: number;
+  at_risk_count: number;
+  at_risk_requirement: number;
+};
+
+export type FestiveDimRow = {
+  ptype?: string;
+  brand?: string;
+  region?: string;
+  wh?: string;
+  requirement: number;
+  need: number;
+  row_count: number;
+  brand_count: number;
+  wh_count: number;
+  ach_be_pct: number;
+  ach_po_pct: number;
 };
 
 export type FocusItemRow = {
@@ -460,6 +489,11 @@ export const pmApi = {
     if (ptype) p.append("ptype", ptype);
     return get<FestiveRow[]>(`/api/festive/requirements?${p.toString()}`);
   },
+  festiveOverview: () => get<FestiveOverview>("/api/festive/overview"),
+  festiveByPtype: () => get<FestiveDimRow[]>("/api/festive/by-ptype"),
+  festiveByBrand: (ptype?: string) => get<FestiveDimRow[]>(`/api/festive/by-brand${ptype ? `?ptype=${encodeURIComponent(ptype)}` : ""}`),
+  festiveByRegion: (ptype?: string) => get<FestiveDimRow[]>(`/api/festive/by-region${ptype ? `?ptype=${encodeURIComponent(ptype)}` : ""}`),
+  festiveByWarehouse: (ptype?: string) => get<FestiveDimRow[]>(`/api/festive/by-warehouse${ptype ? `?ptype=${encodeURIComponent(ptype)}` : ""}`),
 
   focusItems: (wh?: string[], doiMax = 3, topN = 30) => {
     const p = new URLSearchParams(whParams(wh));

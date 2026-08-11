@@ -5,19 +5,8 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { AvailabilityWorkspace } from "./AvailabilityWorkspace";
 import { PurchaseManagerWorkspace } from "./PurchaseManagerWorkspace";
 import { TagsWorkspace } from "./TagsWorkspace";
+import { FestiveWorkspace } from "./FestiveWorkspace";
 import { api, type DataStatus } from "./lib/api";
-
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-24" style={{ color: "var(--text-muted)" }}>
-      <div className="text-[40px]">🚧</div>
-      <div className="text-[14px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-        {label} — coming soon
-      </div>
-      <div className="text-[12px]">This section will be built out in a later phase.</div>
-    </div>
-  );
-}
 
 export default function App() {
   const [view, setView] = useState<ViewKey>("availability");
@@ -83,7 +72,7 @@ export default function App() {
               </div>
             ))}
           {view === "tags" && <TagsWorkspace />}
-          {view === "festive" && <ComingSoon label="Festive" />}
+          {view === "festive" && <FestiveWorkspace />}
         </main>
       </div>
     </div>

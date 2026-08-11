@@ -1,8 +1,9 @@
 import io
+import os
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 
 from .. import fillrate as FR
 from .. import festive as FE
@@ -10,6 +11,7 @@ from .. import inbound_util as IU
 from ..fillrate_store import fill_store
 from ..festive_store import festive_store
 from ..inbound_store import inbound_store
+from ..pushutil import read_push_dataframe
 from ..seed import seed_errors
 from ..store import store
 from ..util import to_native
@@ -46,6 +48,38 @@ async def inbound_upload(file: UploadFile = File(...)):
         raise HTTPException(400, "No usable rows found in that file.")
     inbound_store.load(df, name)
     return {"loaded": True, "filename": name, "rows": len(df)}
+
+
+@router.post("/api/inbound/push")
+async def inbound_push(request: Request):
+    """Apps Script pushes the DOD Tracker sheet to us directly - see
+    data.py's /push for why (outbound calls a script makes on its own
+    authority aren't blocked by Workspace admin policy the way inbound
+    requests to the script's own URL can be)."""
+    expected = os.environ.get("APPSSCRIPT_PUSH_TOKEN")
+    if not expected:
+        raise HTTPException(400, "Push endpoint not configured (APPSSCRIPT_PUSH_TOKEN not set on the backend).")
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if token != expected:
+        raise HTTPException(401, "Invalid push token.")
+
+    try:
+        raw, meta = await read_push_dataframe(request)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Could not parse push payload: {e}")
+    if raw.empty:
+        raise HTTPException(400, "No rows in push payload.")
+
+    try:
+        df = IU.load_inbound_df(raw)
+    except KeyError as e:
+        raise HTTPException(422, str(e))
+    if df.empty:
+        raise HTTPException(400, "No usable rows found in that push.")
+
+    source = meta.get("source", "Apps Script push")
+    inbound_store.load(df, source)
+    return {"loaded": True, "filename": source, "rows": len(df)}
 
 
 @router.get("/api/inbound/status")
@@ -130,6 +164,43 @@ async def festive_requirements(
     df = df[df["requirement"] >= min_requirement]
     df = df.sort_values("requirement", ascending=False)
     return to_native(df.to_dict("records"))
+
+
+# ---------------- Festive dashboard (standalone workspace) ----------------
+
+@router.get("/api/festive/overview")
+async def festive_overview():
+    if not festive_store.is_loaded:
+        raise HTTPException(400, "No festive data loaded yet.")
+    return to_native(FE.overview(festive_store.all()))
+
+
+@router.get("/api/festive/by-ptype")
+async def festive_by_ptype():
+    if not festive_store.is_loaded:
+        raise HTTPException(400, "No festive data loaded yet.")
+    return to_native(FE.by_ptype(festive_store.all()))
+
+
+@router.get("/api/festive/by-brand")
+async def festive_by_brand(ptype: Optional[str] = Query(None)):
+    if not festive_store.is_loaded:
+        raise HTTPException(400, "No festive data loaded yet.")
+    return to_native(FE.by_dimension(festive_store.all(), "brand", ptype))
+
+
+@router.get("/api/festive/by-region")
+async def festive_by_region(ptype: Optional[str] = Query(None)):
+    if not festive_store.is_loaded:
+        raise HTTPException(400, "No festive data loaded yet.")
+    return to_native(FE.by_dimension(festive_store.all(), "region", ptype))
+
+
+@router.get("/api/festive/by-warehouse")
+async def festive_by_warehouse(ptype: Optional[str] = Query(None)):
+    if not festive_store.is_loaded:
+        raise HTTPException(400, "No festive data loaded yet.")
+    return to_native(FE.by_dimension(festive_store.all(), "wh", ptype))
 
 
 # ---------------- Focus items: high CPD, low DOI ----------------

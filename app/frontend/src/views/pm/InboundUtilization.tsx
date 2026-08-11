@@ -69,6 +69,7 @@ export function InboundUtilization({ wh }: { wh: string[] }) {
   const summaryColumns: Column<InboundSummaryRow>[] = [
     { key: "wh", label: "Warehouse", left: true, render: (v) => shortWh(v) },
     { key: "zone", label: "Zone", left: true },
+    { key: "avg_cap", label: "Avg Inbound Cap/day", bar: true },
     { key: "avg_planned", label: "Avg Planned/day", bar: true },
     { key: "avg_grn", label: "Avg GRN/day", bar: true },
     {
@@ -83,6 +84,7 @@ export function InboundUtilization({ wh }: { wh: string[] }) {
   const detailColumns: Column<InboundRow>[] = [
     { key: "date", label: "Date", left: true, defaultSort: true },
     { key: "wh", label: "Warehouse", left: true, render: (v) => shortWh(v) },
+    { key: "cap", label: "Inbound Cap", bar: true },
     { key: "planned", label: "Planned", bar: true },
     { key: "grn", label: "GRN", bar: true },
     { key: "failed", label: "Failed" },
@@ -96,9 +98,9 @@ export function InboundUtilization({ wh }: { wh: string[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg border-l-4 px-4 py-3 text-[12px]" style={{ borderColor: "var(--series-1)", background: "var(--surface-1)", color: "var(--text-secondary)" }}>
-        <b style={{ color: "var(--text-primary)" }}>Utilization</b> = GRN qty ÷ planned qty (not vs capacity) — this is
-        whether a warehouse received what it committed to receiving. Below{" "}
-        <b style={{ color: "var(--status-critical)" }}>85%</b> is flagged red — plan better or flag the gap upstream.
+        <b style={{ color: "var(--text-primary)" }}>Utilization</b> = GRN qty ÷ Inbound Cap — how much of the day's
+        dock capacity actually got used. Below <b style={{ color: "var(--status-critical)" }}>85%</b> is flagged red —
+        plan better or flag the gap upstream.
       </div>
 
       <h4 className="text-[12.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
